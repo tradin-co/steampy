@@ -58,7 +58,7 @@ SteamClient needs at least api_key to provide some functionalities. User can als
 and SteamGuard file to be able to log in and use more methods. Proxies are also supported.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 steam_client = SteamClient('MY_API_KEY')
 steam_client.login('MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE')
@@ -67,7 +67,7 @@ steam_client.login('MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE')
 User can also provide login_cookies from browser to log in by cookies.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 login_cookies = {} # provide dict with cookies
 steam_client = SteamClient('MY_API_KEY',username='MY_USERNAME',login_cookies=login_cookies)
@@ -77,7 +77,7 @@ assert steam_client.was_login_executed
 `proxies` dict can be provided for using proxy for internal SteamClient session.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 proxies =  {
     "http": "http://login:password@host:port", 
@@ -129,7 +129,7 @@ Unless specified in documentation, the method does not require login to work(it 
 Set proxy for steampy session, example: 
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 steam_client = SteamClient('MY_API_KEY')
 proxies =  {
@@ -145,7 +145,7 @@ steam_client.set_proxies(proxies)
 Set login cookies, can be used instead of normal `login` method.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 login_cookies = {} # provide dict with cookies
 steam_client = SteamClient('MY_API_KEY',username='MY_USERNAME',login_cookies=login_cookies)
@@ -157,7 +157,7 @@ assert steam_client.was_login_executed
 Log into the steam account. Allows to accept trade offers and some other methods.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 steam_client = SteamClient('MY_API_KEY')
 steam_client.login('MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE')
@@ -166,7 +166,7 @@ steam_client.login('MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE')
 You can also use `with` statement to automatically login and logout.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     client.some_method1(...)
@@ -180,7 +180,7 @@ Using `SteamClient.login` method is required before usage
 Logout from steam.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 steam_client = SteamClient('MY_API_KEY')
 steam_client.login('MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE')
@@ -190,7 +190,7 @@ steam_client.logout()
 You can also use `with` statement to automatically login and logout.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     client.some_method1(...)
@@ -205,7 +205,7 @@ Check if session is alive. This method fetches main page and check
 if user name is there. Thanks for vasia123 for this solution.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 steam_client = SteamClient('MY_API_KEY')
 steam_client.login('MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE')
@@ -221,7 +221,7 @@ Directly call api method from the steam api services.
 [Unofficial but more elegant](https://lab.xpaw.me/steam_api_documentation.html)
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 steam_client = SteamClient('MY_API_KEY')
 params = {'key': 'MY_API_KEY'}
@@ -264,8 +264,8 @@ This method works when partner is your friend or steam.
 In returned dict there will be trade offer id by the key `tradeofferid`.
 
 ```python
-from steampy.client import SteamClient, Asset
-from steampy.utils import GameOptions
+from steampy.steampy.client import SteamClient, Asset
+from steampy.steampy.utils import GameOptions
 
 steam_client = SteamClient('MY_API_KEY')
 steam_client.login('MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE')
@@ -448,7 +448,7 @@ If the `on_hold` parameter is set to `True`, it will return the current on-hold 
 
 Example:
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 from decimal import Decimal 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
             wallet_balance = client.get_wallet_balance()
@@ -472,8 +472,8 @@ Default currency is USD
 May rise `TooManyRequests` exception if used more than 20 times in 60 seconds.
 
 ```python
-from steampy.client import SteamClient
-from steampy.models import GameOptions
+from steampy.steampy.client import SteamClient
+from steampy.steampy.models import GameOptions
 
 steam_client = SteamClient('API_KEY')
 item = 'M4A1-S | Cyrex (Factory New)'
@@ -487,8 +487,8 @@ Using `SteamClient.login` method is required before usage
 
 Returns list of price history of and item.
 ```python
-from steampy.client import SteamClient
-from steampy.models import GameOptions
+from steampy.steampy.client import SteamClient
+from steampy.steampy.models import GameOptions
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     item = 'M4A1-S | Cyrex (Factory New)'
@@ -506,7 +506,7 @@ Using `SteamClient.login` method is required before usage
 Returns market listings posted by user
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     listings = client.market.get_my_market_listings()
@@ -520,8 +520,8 @@ Using `SteamClient.login` method is required before usage
 Create sell order of the asset on the steam market.
 
 ```python
-from steampy.client import SteamClient
-from steampy.models import GameOptions
+from steampy.steampy.client import SteamClient
+from steampy.steampy.models import GameOptions
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     asset_id_to_sell = 'some_asset_id'
@@ -538,8 +538,8 @@ Using `SteamClient.login` method is required before usage
 Create buy order of the assets on the steam market.
 
 ```python
-from steampy.client import SteamClient
-from steampy.models import GameOptions, Currency
+from steampy.steampy.client import SteamClient
+from steampy.steampy.models import GameOptions, Currency
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     response = client.market.create_buy_order("AK-47 | Redline (Field-Tested)", "1034", 2, GameOptions.CS, Currency.EURO)
@@ -554,8 +554,8 @@ Using `SteamClient.login` method is required before usage
 Buy a certain item from market listing.
 
 ```python
-from steampy.client import SteamClient
-from steampy.models import Currency, GameOptions
+from steampy.steampy.client import SteamClient
+from steampy.steampy.models import Currency, GameOptions
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     response = client.market.buy_item('AK-47 | Redline (Field-Tested)', '1942659007774983251', 81, 10,
@@ -570,7 +570,7 @@ Using `SteamClient.login` method is required before usage
 Cancel previously requested sell order on steam market.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     sell_order_id = "some_sell_order_id"
@@ -584,7 +584,7 @@ Using `SteamClient.login` method is required before usage
 Cancel previously requested buy order on steam market.
 
 ```python
-from steampy.client import SteamClient
+from steampy.steampy.client import SteamClient
 
 with SteamClient('MY_API_KEY', 'MY_USERNAME', 'MY_PASSWORD', 'PATH_TO_STEAMGUARD_FILE') as client:
     buy_order_id = "some_buy_order_id"
@@ -675,7 +675,7 @@ Returns the amount that the buyer pays during a market transaction:
 
 ```python
 from decimal import Decimal
-from steampy.utils import calculate_gross_price
+from steampy.steampy.utils import calculate_gross_price
 
 publisher_fee = Decimal('0.1')  # 10%
 
@@ -692,7 +692,7 @@ Returns the amount that the seller receives after a market transaction:
 
 ```python
 from decimal import Decimal
-from steampy.utils import calculate_net_price
+from steampy.steampy.utils import calculate_net_price
 
 publisher_fee = Decimal('0.1')  # 10%
 

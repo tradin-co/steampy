@@ -1,7 +1,7 @@
 import json
 
-from steampy.client import SteamClient, InvalidCredentials
-from steampy.models import GameOptions
+from steampy.steampy.client import SteamClient, InvalidCredentials
+from steampy.steampy.models import GameOptions
 
 
 # Your Steam username

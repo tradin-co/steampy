@@ -1,6 +1,6 @@
 import time
 
-from steampy.client import SteamClient, TradeOfferState
+from steampy.steampy.client import SteamClient, TradeOfferState
 
 
 # Set API key

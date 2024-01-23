@@ -5,10 +5,10 @@ from http import HTTPStatus
 
 from requests import Session
 
-from steampy.confirmation import ConfirmationExecutor
-from steampy.exceptions import ApiException, TooManyRequests
-from steampy.models import Currency, SteamUrl, GameOptions
-from steampy.utils import (
+from steampy.steampy.confirmation import ConfirmationExecutor
+from steampy.steampy.exceptions import ApiException, TooManyRequests
+from steampy.steampy.models import Currency, SteamUrl, GameOptions
+from steampy.steampy.utils import (
     text_between,
     get_listing_id_to_assets_address_from_html,
     get_market_listings_from_html,

@@ -7,13 +7,13 @@ from decimal import Decimal
 
 import requests
 
-from steampy import guard
-from steampy.confirmation import ConfirmationExecutor
-from steampy.exceptions import SevenDaysHoldException, ApiException
-from steampy.login import LoginExecutor, InvalidCredentials
-from steampy.market import SteamMarket
-from steampy.models import Asset, TradeOfferState, SteamUrl, GameOptions
-from steampy.utils import (
+from steampy.steampy import guard
+from steampy.steampy.confirmation import ConfirmationExecutor
+from steampy.steampy.exceptions import SevenDaysHoldException, ApiException
+from steampy.steampy.login import LoginExecutor, InvalidCredentials
+from steampy.steampy.market import SteamMarket
+from steampy.steampy.models import Asset, TradeOfferState, SteamUrl, GameOptions
+from steampy.steampy.utils import (
     text_between,
     texts_between,
     merge_items_with_descriptions_from_inventory,

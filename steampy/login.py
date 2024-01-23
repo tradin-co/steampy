@@ -4,10 +4,10 @@ from base64 import b64encode
 from rsa import encrypt, PublicKey
 from requests import Session, Response
 
-from steampy import guard
-from steampy.models import SteamUrl
-from steampy.utils import create_cookie
-from steampy.exceptions import InvalidCredentials, CaptchaRequired, ApiException
+from steampy.steampy import guard
+from steampy.steampy.models import SteamUrl
+from steampy.steampy.utils import create_cookie
+from steampy.steampy.exceptions import InvalidCredentials, CaptchaRequired, ApiException
 
 
 class LoginExecutor:

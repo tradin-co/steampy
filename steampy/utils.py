@@ -11,8 +11,8 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from requests.structures import CaseInsensitiveDict
 
-from steampy.models import GameOptions
-from steampy.exceptions import ProxyConnectionError, LoginRequired
+from steampy.steampy.models import GameOptions
+from steampy.steampy.exceptions import ProxyConnectionError, LoginRequired
 
 
 def login_required(func):

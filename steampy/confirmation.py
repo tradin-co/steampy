@@ -7,9 +7,9 @@ from http import HTTPStatus
 import requests
 from bs4 import BeautifulSoup
 
-from steampy import guard
-from steampy.exceptions import ConfirmationExpected
-from steampy.login import InvalidCredentials
+from steampy.steampy import guard
+from steampy.steampy.exceptions import ConfirmationExpected
+from steampy.steampy.login import InvalidCredentials
 
 
 class Confirmation:

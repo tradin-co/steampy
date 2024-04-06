@@ -1,13 +1,14 @@
-from http import HTTPStatus
+import time
 from base64 import b64encode
+from http import HTTPStatus
 
-from rsa import encrypt, PublicKey
 from requests import Session, Response
+from rsa import encrypt, PublicKey
 
 from steampy.steampy import guard
+from steampy.steampy.exceptions import InvalidCredentials, CaptchaRequired, ApiException
 from steampy.steampy.models import SteamUrl
 from steampy.steampy.utils import create_cookie
-from steampy.steampy.exceptions import InvalidCredentials, CaptchaRequired, ApiException
 
 
 class LoginExecutor:
@@ -32,6 +33,10 @@ class LoginExecutor:
 
     def login(self) -> Session:
         login_response = self._send_login_request()
+        if login_response.json()['response'].get('extended_error_message'):
+            time.sleep(login_response.json()['response']['interval'])
+            login_response = self._send_login_request()
+
         if not login_response.json()['response']:
             raise ApiException('No response received from Steam API. Please try again later.')
         self._check_for_captcha(login_response)
@@ -60,7 +65,6 @@ class LoginExecutor:
             else:
                 community_cookie = create_cookie(name, cookie, community_domain)
             self.session.cookies.set(**community_cookie)
-
 
     def _fetch_rsa_params(self, current_number_of_repetitions: int = 0) -> dict:
         self.session.post(SteamUrl.COMMUNITY_URL)

@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import List, Union
 
 import requests
+from requests.cookies import cookiejar_from_dict
 
 from steampy.steampy import guard
 from steampy.steampy.confirmation import ConfirmationExecutor
@@ -158,6 +159,15 @@ class SteamClient:
             raise InvalidCredentials('Invalid API key')
 
         return response
+
+    def registrate_api_key(self, domain: str, request_id: str):
+        url = SteamUrl.COMMUNITY_URL + '/dev/requestkey'
+        params = {'domain': domain,
+                  'request_id': request_id,
+                  'sessionid': self._get_session_id(),
+                  'agreeToTerms': True}
+        response = self._session.post(url, data=params)
+        return response.json()
 
     @staticmethod
     def is_invalid_api_key(response: requests.Response) -> bool:

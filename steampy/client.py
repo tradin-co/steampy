@@ -1,19 +1,18 @@
 import json
 import re
 import urllib.parse as urlparse
-from datetime import time
 from decimal import Decimal
 from typing import List, Union
 
 import requests
-from requests.cookies import cookiejar_from_dict
+from yarl import URL
 
 from steampy.steampy import guard
 from steampy.steampy.confirmation import ConfirmationExecutor
 from steampy.steampy.exceptions import SevenDaysHoldException, ApiException
 from steampy.steampy.login import LoginExecutor, InvalidCredentials
 from steampy.steampy.market import SteamMarket
-from steampy.steampy.models import Asset, TradeOfferState, SteamUrl, GameOptions
+from steampy.steampy.models import Asset, TradeOfferState, SteamUrl, GameOptions, WalletInfo
 from steampy.steampy.utils import (
     text_between,
     texts_between,
@@ -169,6 +168,13 @@ class SteamClient:
         response = self._session.post(url, data=params)
         return response.json()
 
+    def redeem_wallet_code(self, wallet_code: str, ):
+        url = SteamUrl.STORE_URL + '/account/redeemwalletcode'
+        params = {'wallet_code': wallet_code,
+                  'sessionid': self._get_session_id()}
+        response = self._session.post(url, data=params)
+        return response.json()
+
     @staticmethod
     def is_invalid_api_key(response: requests.Response) -> bool:
         msg = 'Access is denied. Retrying will not help. Please verify your <pre>key=</pre> parameter'
@@ -229,9 +235,10 @@ class SteamClient:
 
         return offers_response
 
-    def get_trade_offer(self, trade_offer_id: str, merge: bool = True,use_webtoken=True) -> dict:
-        params = {'key' if not use_webtoken else 'access_token': self._api_key if not use_webtoken else self._access_token,
-                  'tradeofferid': trade_offer_id, 'language': 'english'}
+    def get_trade_offer(self, trade_offer_id: str, merge: bool = True, use_webtoken=True) -> dict:
+        params = {
+            'key' if not use_webtoken else 'access_token': self._api_key if not use_webtoken else self._access_token,
+            'tradeofferid': trade_offer_id, 'language': 'english'}
         response = self.api_call('GET', 'IEconService', 'GetTradeOffer', 'v1', params).json()
 
         if merge and 'descriptions' in response['response']:
@@ -450,17 +457,15 @@ class SteamClient:
         return f'{SteamUrl.COMMUNITY_URL}/tradeoffer/{trade_offer_id}'
 
     @login_required
-    # If convert_to_decimal = False, the price will be returned WITHOUT a decimal point.
-    def get_wallet_balance(self, convert_to_decimal: bool = True, on_hold: bool = False) -> Union[str, Decimal]:
-        response = self._session.get(f'{SteamUrl.COMMUNITY_URL}/market')
-        wallet_info_match = re.search(r'var g_rgWalletInfo = (.*?);', response.text)
-        if wallet_info_match:
-            balance_dict_str = wallet_info_match.group(1)
-            balance_dict = json.loads(balance_dict_str)
-        else:
-            raise Exception('Unable to get wallet balance string match')
-        balance_dict_key = 'wallet_delayed_balance' if on_hold else 'wallet_balance'
-        if convert_to_decimal:
-            return Decimal(balance_dict[balance_dict_key]) / 100
-        else:
-            return balance_dict[balance_dict_key]
+    def get_wallet_balance(self) -> WalletInfo:
+        response = self._session.get(f'{SteamUrl.COMMUNITY_URL}/market', headers={"Referer": str(self.profile_url)})
+        rt = response.text
+        info: dict = json.loads(re.search(r"g_rgWalletInfo = (?P<info>.+);", rt)["info"])
+        if not info.get("success"):
+            raise ApiException("Failed to fetch wallet info from inventory.", info)
+
+        return info
+
+    @property
+    def profile_url(self) -> URL:
+        return SteamUrl.COMMUNITY_URL + f"/profiles/{self.steam_guard['steamid']}/"

@@ -1,5 +1,23 @@
-from enum import IntEnum
 from collections import namedtuple
+from enum import IntEnum
+from typing import TypedDict
+
+
+class WalletInfo(TypedDict):
+    wallet_currency: int
+    wallet_country: str
+    wallet_state: str
+    wallet_fee: str
+    wallet_fee_minimum: str
+    wallet_fee_percent: str
+    wallet_publisher_fee_percent_default: str
+    wallet_fee_base: str
+    wallet_balance: float
+    wallet_delayed_balance: str
+    wallet_max_balance: str
+    wallet_trade_max_balance: str
+    success: int
+    rwgrsn: int
 
 
 class GameOptions:

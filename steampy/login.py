@@ -1,3 +1,4 @@
+import logging
 import time
 from base64 import b64encode
 from http import HTTPStatus
@@ -9,6 +10,8 @@ from steampy.steampy import guard
 from steampy.steampy.exceptions import InvalidCredentials, CaptchaRequired, ApiException
 from steampy.steampy.models import SteamUrl
 from steampy.steampy.utils import create_cookie
+
+log = logging.getLogger(__name__)
 
 
 class LoginExecutor:
@@ -33,9 +36,6 @@ class LoginExecutor:
 
     def login(self) -> Session:
         login_response = self._send_login_request()
-        if login_response.json()['response'].get('extended_error_message'):
-            time.sleep(login_response.json()['response']['interval'])
-            login_response = self._send_login_request()
 
         if not login_response.json()['response']:
             raise ApiException('No response received from Steam API. Please try again later.')
@@ -51,7 +51,15 @@ class LoginExecutor:
         encrypted_password = self._encrypt_password(rsa_params)
         rsa_timestamp = rsa_params['rsa_timestamp']
         request_data = self._prepare_login_request_data(encrypted_password, rsa_timestamp)
-        return self._api_call('POST', 'IAuthenticationService', 'BeginAuthSessionViaCredentials', params=request_data)
+        time.sleep(5)
+        result = self._api_call('POST', 'IAuthenticationService', 'BeginAuthSessionViaCredentials', params=request_data)
+        if not result.json()['response'].get('extended_error_message'):
+            log.info(f'Trying to login again {result.json()}')
+            time.sleep(result.json()['response']['interval'] + 3)
+            result = self._api_call('POST', 'IAuthenticationService', 'BeginAuthSessionViaCredentials',
+                                    params=request_data)
+
+        return result
 
     def set_sessionid_cookies(self):
         community_domain = SteamUrl.COMMUNITY_URL[8:]
@@ -67,6 +75,7 @@ class LoginExecutor:
             self.session.cookies.set(**community_cookie)
 
     def _fetch_rsa_params(self, current_number_of_repetitions: int = 0) -> dict:
+        log.info(f'Fetching rsa-key. Attempt {current_number_of_repetitions}')
         self.session.post(SteamUrl.COMMUNITY_URL)
         request_data = {'account_name': self.username}
         response = self._api_call('GET', 'IAuthenticationService', 'GetPasswordRSAPublicKey', params=request_data)
@@ -121,6 +130,8 @@ class LoginExecutor:
             self.session.post(pass_data['url'], pass_data['params'])
 
     def _update_steam_guard(self, login_response: Response) -> None:
+        if not login_response.json()['response'].get('client_id'):
+            raise Exception(f'Cannot update Steam guard responce {login_response.json()["response"]}')
         client_id = login_response.json()['response']['client_id']
         steamid = login_response.json()['response']['steamid']
         request_id = login_response.json()['response']['request_id']

@@ -56,6 +56,11 @@ class LoginMixin:
         rt = await r.text()
         return self.username.lower() in rt.lower()
 
+    def __del__(self: "SteamCommunityMixin"):
+        loop = asyncio.get_event_loop()
+        if loop.is_running() and self.session:
+            loop.create_task(self.session.close())
+
     async def login(self: "SteamCommunityMixin", *, init_data=True, init_session=True):
         """
         Perform login.

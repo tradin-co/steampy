@@ -1,11 +1,12 @@
-from typing import TYPE_CHECKING, overload, Literal, Type, TypeAlias, Callable
+import json
 from datetime import datetime
 from json import dumps as jdumps
+from typing import TYPE_CHECKING, overload, Literal, Type, TypeAlias, Callable
 
 from yarl import URL
 
-from .exceptions import ApiError
 from .constants import STEAM_URL, CORO, T_KWARGS
+from .exceptions import ApiError
 from .models import (
     TradeOffer,
     TradeOfferItem,
@@ -14,8 +15,9 @@ from .models import (
     HistoryTradeOfferItem,
     EconItemType,
 )
-from .utils import create_ident_code, to_int_boolean, steam_id_to_account_id, account_id_to_steam_id
 from .typed import TradeOffersSummary
+from .utils import create_ident_code, to_int_boolean, steam_id_to_account_id, account_id_to_steam_id
+from ..steampy.utils import texts_between
 
 if TYPE_CHECKING:
     from .client import SteamCommunityMixin
@@ -85,7 +87,8 @@ class TradeMixin:
 
         return trade
 
-    async def fetch_trade(self: "SteamCommunityMixin", offer_id: int) -> TradeOffer:
+    async def fetch_trade(self: "SteamCommunityMixin", offer_id: int):
+        # -> TradeOffer:
         """
         Fetch trade offer from Steam.
 
@@ -93,10 +96,10 @@ class TradeMixin:
         """
 
         params = {
-            "key": self._api_key,
+            "access_token": self._access_token,
             "tradeofferid": offer_id,
             "language": self.language,
-            "get_descriptions": 1,
+            "get_descriptions": 0,  # 1 TO GET DESCRIPTIONS
         }
         r = await self.session.get(STEAM_URL.API.IEconService.GetTradeOffer, params=params)
         rj: dict = await r.json()
@@ -105,17 +108,17 @@ class TradeMixin:
 
         data: dict[str, dict | list[dict]] = rj["response"]
         item_descrc_map = {}
-        self._update_item_descrs_map_for_trades(data["descriptions"], item_descrc_map)
+        # self._update_item_descrs_map_for_trades(data["descriptions"], item_descrc_map)
 
-        trade = self._create_trade_offer(data["offer"], item_descrc_map)
-        await self.store_trade_offer(trade.id, trade)
-        return trade
+        # trade = self._create_trade_offer(data["offer"], item_descrc_map)
+        # await self.store_trade_offer(trade.id, trade)
+        return data['offer']
 
     @classmethod
     def _update_item_descrs_map_for_trades(
-        cls: Type["SteamCommunityMixin"],
-        data: list[dict],
-        item_descrs_map: dict[str, dict],
+            cls: Type["SteamCommunityMixin"],
+            data: list[dict],
+            item_descrs_map: dict[str, dict],
     ):
         for desc in data:
             key = create_ident_code(desc["classid"], desc["appid"])
@@ -123,9 +126,9 @@ class TradeMixin:
                 item_descrs_map[key] = cls._create_item_description_kwargs(desc, [desc])
 
     def _create_trade_offer(
-        self: "SteamCommunityMixin",
-        data: dict,
-        item_descrs_map: dict[str, dict],
+            self: "SteamCommunityMixin",
+            data: dict,
+            item_descrs_map: dict[str, dict],
     ) -> TradeOffer:
         return TradeOffer(
             id=int(data["tradeofferid"]),
@@ -143,9 +146,9 @@ class TradeMixin:
 
     @classmethod
     def _parse_items_for_trade(
-        cls,
-        items: list[dict],
-        item_descrs_map: dict[str, dict],
+            cls,
+            items: list[dict],
+            item_descrs_map: dict[str, dict],
     ) -> list[TradeOfferItem]:
         return [
             TradeOfferItem(
@@ -160,35 +163,36 @@ class TradeMixin:
 
     @overload
     async def fetch_trade_offers(
-        self,
-        *,
-        time_historical_cutoff: int = ...,
-        sent: bool = ...,
-        received: bool = ...,
+            self,
+            *,
+            time_historical_cutoff: int = ...,
+            sent: bool = ...,
+            received: bool = ...,
     ) -> TRADE_OFFERS:
         ...
 
     @overload
     async def fetch_trade_offers(
-        self,
-        *,
-        active_only: Literal[False],
-        historical_only: Literal[True],
-        sent: bool = ...,
-        received: bool = ...,
+            self,
+            *,
+            active_only: Literal[False],
+            historical_only: Literal[True],
+            sent: bool = ...,
+            received: bool = ...,
     ) -> TRADE_OFFERS:
         ...
 
     async def fetch_trade_offers(
-        self: "SteamCommunityMixin",
-        *,
-        active_only=True,
-        time_historical_cutoff: int = None,
-        historical_only=False,
-        sent=True,
-        received=True,
-        **kwargs: T_KWARGS,
-    ) -> TRADE_OFFERS:
+            self: "SteamCommunityMixin",
+            *,
+            active_only=True,
+            time_historical_cutoff: int = None,
+            historical_only=False,
+            sent=True,
+            received=True,
+            **kwargs: T_KWARGS,
+    ):
+        # -> TRADE_OFFERS:
         """
         Fetch trade offers from Steam Web Api.
 
@@ -227,21 +231,24 @@ class TradeMixin:
             data: dict[str, dict | list[dict]] = rj["response"]
             offer_sent_datas.extend(data.get("trade_offers_sent", ()))
             offer_received_datas.extend(data.get("trade_offers_received", ()))
-            self._update_item_descrs_map_for_trades(data["descriptions"], item_descrs_map)
+            # self._update_item_descrs_map_for_trades(data["descriptions"], item_descrs_map)
 
             params["cursor"] = data.get("next_cursor", 0)
             if not params["cursor"]:
                 break
 
-        o_sent = [self._create_trade_offer(d, item_descrs_map) for d in offer_sent_datas]
-        o_received = [self._create_trade_offer(d, item_descrs_map) for d in offer_received_datas]
+        # o_sent = [self._create_trade_offer(d, item_descrs_map) for d in offer_sent_datas]
+        # o_received = [self._create_trade_offer(d, item_descrs_map) for d in offer_received_datas]
+        #
+        # await self.store_multiple_trade_offers(
+        #     [*(t.id for t in o_sent), *(t.id for t in o_received)],
+        #     [*o_sent, *o_received],
+        # )
 
-        await self.store_multiple_trade_offers(
-            [*(t.id for t in o_sent), *(t.id for t in o_received)],
-            [*o_sent, *o_received],
-        )
-
-        return o_sent, o_received
+        return {
+            "sent": offer_sent_datas,
+            "received": offer_received_datas,
+        }
 
     async def get_trade_offers_summary(self: "SteamCommunityMixin") -> TradeOffersSummary:
         r = await self.session.get(STEAM_URL.API.IEconService.GetTradeOffersSummary, params={"key": self._api_key})
@@ -255,7 +262,7 @@ class TradeMixin:
         """Fetch single trade offer from history."""
 
         params = {
-            "key": self._api_key,
+            "access_token": self._access_token,
             "tradeid": offer_id,
             "get_descriptions": 1,
             "language": self.language,
@@ -271,15 +278,21 @@ class TradeMixin:
 
         return self._create_history_trade_offer(rj["response"]["trades"][0], item_descrs_map)
 
+    async def get_trade_receipt_html(self: "SteamCommunityMixin", trade_id: int):
+        r = await  self.session.get(f'https://steamcommunity.com/trade/{trade_id}/receipt')
+        html = await r.text()
+        items = [json.loads(item) for item in texts_between(html, 'oItem = ', ';\r\n\toItem')]
+        return items
+
     async def get_trade_history(
-        self: "SteamCommunityMixin",
-        max_trades=100,
-        *,
-        start_after_time=0,
-        start_after_trade_id=0,
-        navigating_back=False,
-        include_failed=True,
-        **kwargs: T_KWARGS,
+            self: "SteamCommunityMixin",
+            max_trades=100,
+            *,
+            start_after_time=0,
+            start_after_trade_id=0,
+            navigating_back=False,
+            include_failed=True,
+            **kwargs: T_KWARGS,
     ) -> tuple[list[HistoryTradeOffer], int]:
         """
         Fetch history trades with changed assets data.
@@ -320,9 +333,9 @@ class TradeMixin:
         )
 
     def _create_history_trade_offer(
-        self: "SteamCommunityMixin",
-        data: dict,
-        item_descrs_map: dict[str, dict],
+            self: "SteamCommunityMixin",
+            data: dict,
+            item_descrs_map: dict[str, dict],
     ) -> HistoryTradeOffer:
         return HistoryTradeOffer(
             id=int(data["tradeid"]),
@@ -336,9 +349,9 @@ class TradeMixin:
 
     @classmethod
     def _parse_items_for_history_trades(
-        cls,
-        items: list[dict],
-        item_descrs_map: dict[str, dict],
+            cls,
+            items: list[dict],
+            item_descrs_map: dict[str, dict],
     ) -> list[HistoryTradeOfferItem]:
         return [
             HistoryTradeOfferItem(
@@ -352,30 +365,31 @@ class TradeMixin:
         ]
 
     async def _do_action_with_offer(
-        self: "SteamCommunityMixin",
-        offer_id: int,
-        action: Literal["cancel", "decline"],
-    ) -> int:
+            self: "SteamCommunityMixin",
+            offer_id: int,
+            action: Literal["cancel", "decline"],
+    ):
         r = await self.session.post(STEAM_URL.TRADE / f"{offer_id}/{action}", data={"sessionid": self.session_id})
         rj: dict[str, str] = await r.json()
-        return int(rj.get("tradeofferid", 0))
+        # return int(rj.get("tradeofferid", 0))
+        return rj
 
     async def cancel_trade_offer(self: "SteamCommunityMixin", offer: int | TradeOffer):
         """Cancel outgoing trade offer. Remove offer from cache."""
-
-        if isinstance(offer, TradeOffer):
-            if not offer.is_our_offer:
-                raise ValueError("You can't cancel not your offer! Are you trying to decline incoming offer?")
-            offer_id = offer.id
-            to_remove = offer
-        else:
-            offer_id = offer
-            to_remove = None
-        resp_offer_id = await self._do_action_with_offer(offer_id, "cancel")
-        if not resp_offer_id or resp_offer_id != offer_id:
-            raise ApiError(f"Error while try to cancel offer [{offer_id}].")
-
-        await self.remove_trade_offer(offer_id, to_remove)  # remove after making sure that all is okay
+        offer_id = offer
+        # if isinstance(offer, TradeOffer):
+        #     if not offer.is_our_offer:
+        #         raise ValueError("You can't cancel not your offer! Are you trying to decline incoming offer?")
+        #     offer_id = offer.id
+        #     to_remove = offer
+        # else:
+        #     offer_id = offer
+        #     to_remove = None
+        return await self._do_action_with_offer(offer_id, "cancel")
+        # if not resp_offer_id or resp_offer_id != offer_id:
+        #     raise ApiError(f"Error while try to cancel offer [{offer_id}].")
+        # return resp_offer_id
+        # await self.remove_trade_offer(offer_id, to_remove)  # remove after making sure that all is okay
 
     async def decline_trade_offer(self: "SteamCommunityMixin", offer: int | TradeOffer):
         """Decline incoming trade offer. Remove offer from cache."""
@@ -417,21 +431,21 @@ class TradeMixin:
         :raises ConfirmationError: if confirmation can't be found or while do action with
         :raises ApiError: if there is error when trying to fetch `TradeOffer`
         """
-
-        if isinstance(offer, TradeOffer):
-            if offer.is_our_offer:
-                raise ValueError("You can't accept your offer! Are you trying to cancel outgoing offer?")
-            offer_id = offer.id
-            partner = offer.partner_id64
-            to_remove = TradeOffer
-        else:  # int
-            if not partner:
-                fetched = await self.get_or_fetch_trade_offer(offer)
-                return await self.accept_trade_offer(fetched)
-
-            offer_id = offer
-            partner = account_id_to_steam_id(partner) if partner < 4294967296 else partner  # 2**32
-            to_remove = None
+        offer_id = offer
+        # if isinstance(offer, TradeOffer):
+        #     if offer.is_our_offer:
+        #         raise ValueError("You can't accept your offer! Are you trying to cancel outgoing offer?")
+        #     offer_id = offer.id
+        #     partner = offer.partner_id64
+        #     to_remove = TradeOffer
+        # else:  # int
+        #     if not partner:
+        #         fetched = await self.get_or_fetch_trade_offer(offer)
+        #         return await self.accept_trade_offer(fetched)
+        #
+        #     offer_id = offer
+        #     partner = account_id_to_steam_id(partner) if partner < 4294967296 else partner  # 2**32
+        #     to_remove = None
 
         data = {
             "sessionid": self.session_id,
@@ -446,46 +460,47 @@ class TradeMixin:
         if rj.get("needs_mobile_confirmation"):
             await self.confirm_trade_offer(offer_id)
 
-        await self.remove_trade_offer(offer_id, to_remove)
+        return rj
+        # await self.remove_trade_offer(offer_id, to_remove)
 
     @overload
     async def make_trade_offer(
-        self,
-        obj: int,
-        to_give: list[EconItemType] = ...,
-        to_receive: list[EconItemType] = ...,
-        message: str = ...,
-        *,
-        token: str = ...,
-        confirm: bool = ...,
-        countered_id: int = ...,
+            self,
+            obj: int,
+            to_give: list[EconItemType] = ...,
+            to_receive: list[EconItemType] = ...,
+            message: str = ...,
+            *,
+            token: str = ...,
+            confirm: bool = ...,
+            countered_id: int = ...,
     ) -> int:
         ...
 
     @overload
     async def make_trade_offer(
-        self,
-        obj: str,
-        to_give: list[EconItemType] = ...,
-        to_receive: list[EconItemType] = ...,
-        message: str = ...,
-        *,
-        confirm: bool = ...,
-        countered_id: int = ...,
+            self,
+            obj: str,
+            to_give: list[EconItemType] = ...,
+            to_receive: list[EconItemType] = ...,
+            message: str = ...,
+            *,
+            confirm: bool = ...,
+            countered_id: int = ...,
     ) -> int:
         ...
 
     async def make_trade_offer(
-        self: "SteamCommunityMixin",
-        obj: int | str,
-        to_give: list[EconItemType] = (),
-        to_receive: list[EconItemType] = (),
-        message="",
-        *,
-        token: str = None,
-        confirm=True,
-        countered_id: int = None,
-        **kwargs: T_KWARGS,
+            self: "SteamCommunityMixin",
+            obj: int | str,
+            to_give: list[EconItemType] = (),
+            to_receive: list[EconItemType] = (),
+            message="",
+            *,
+            token: str = None,
+            confirm=True,
+            countered_id: int = None,
+            **kwargs: T_KWARGS,
     ) -> int:
         """
         Make (send) steam trade offer to partner.
@@ -569,39 +584,39 @@ class TradeMixin:
 
     @overload
     async def counter_trade_offer(
-        self,
-        obj: TradeOffer,
-        to_give: list[EconItemType] = (),
-        to_receive: list[EconItemType] = (),
-        message="",
-        *,
-        confirm: bool = ...,
+            self,
+            obj: TradeOffer,
+            to_give: list[EconItemType] = (),
+            to_receive: list[EconItemType] = (),
+            message="",
+            *,
+            confirm: bool = ...,
     ) -> int:
         ...
 
     @overload
     async def counter_trade_offer(
-        self,
-        obj: int,
-        to_give: list[EconItemType] = (),
-        to_receive: list[EconItemType] = (),
-        message="",
-        *,
-        partner_id: int,
-        confirm: bool = ...,
+            self,
+            obj: int,
+            to_give: list[EconItemType] = (),
+            to_receive: list[EconItemType] = (),
+            message="",
+            *,
+            partner_id: int,
+            confirm: bool = ...,
     ) -> int:
         ...
 
     def counter_trade_offer(
-        self,
-        obj: TradeOffer | int,
-        to_give: list[EconItemType] = (),
-        to_receive: list[EconItemType] = (),
-        message="",
-        *,
-        partner_id: int = None,
-        confirm=True,
-        **kwargs: T_KWARGS,
+            self,
+            obj: TradeOffer | int,
+            to_give: list[EconItemType] = (),
+            to_receive: list[EconItemType] = (),
+            message="",
+            *,
+            partner_id: int = None,
+            confirm=True,
+            **kwargs: T_KWARGS,
     ) -> CORO[int]:
         """
         Counter trade offer with another.

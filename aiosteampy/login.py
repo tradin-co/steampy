@@ -56,6 +56,11 @@ class LoginMixin:
         rt = await r.text()
         return self.username.lower() in rt.lower()
 
+    async def get_web_token(self: "SteamCommunityMixin"):
+        r = await self.session.get("https://steamcommunity.com/pointssummary/ajaxgetasyncconfig")
+        rj = await r.json()
+        return rj
+
     def __del__(self: "SteamCommunityMixin"):
         loop = asyncio.get_event_loop()
         if loop.is_running() and self.session:

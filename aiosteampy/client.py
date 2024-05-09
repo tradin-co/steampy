@@ -210,6 +210,16 @@ class SteamCommunityMixin(
         search = API_KEY_RE.search(rt)
         return search["api_key"] if search else None
 
+    async def registrate_api_key(self, domain: str, request_id: str):
+        url = STEAM_URL.COMMUNITY / "dev/requestkey"
+        params = {'domain': domain,
+                  'request_id': request_id,
+                  'sessionid': self.session_id,
+                  'agreeToTerms': True}
+        response = await self.session.post(url, data=params)
+        return await response.json()
+
+
     async def register_new_api_key(self, domain="https://github.com/somespecialone/aiosteampy") -> str:
         """
         Register new api key, cache it and return.

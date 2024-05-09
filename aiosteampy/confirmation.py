@@ -144,12 +144,12 @@ class ConfirmationMixin:
         confs and await self.allow_multiple_confirmations(confs)
         return confs
 
-    def allow_confirmation(self, conf: Confirmation) -> CORO[None]:
+    def allow_confirmation(self, conf: Confirmation):
         """Shorthand for `send_confirmation(conf, 'allow')`."""
 
         return self.send_confirmation(conf, "allow")
 
-    async def send_confirmation(self: "SteamCommunityMixin", conf: Confirmation, tag: CONF_OP_TAGS) -> None:
+    async def send_confirmation(self: "SteamCommunityMixin", conf: Confirmation, tag: CONF_OP_TAGS):
         """
         Perform confirmation action. Remove passed conf from inner cache.
 
@@ -164,10 +164,11 @@ class ConfirmationMixin:
         rj = await r.json()
         await self.remove_confirmation(conf.asset_ident_code or conf.creator_id, conf)  # delete before raise error
 
-        if not rj.get("success"):
-            raise ConfirmationError(
-                f"Failed to perform confirmation action `{tag}` for {conf.creator_id} trade/listing id."
-            )
+        return rj
+        # if not rj.get("success"):
+        #     raise ConfirmationError(
+        #         f"Failed to perform confirmation action `{tag}` for {conf.creator_id} trade/listing id."
+        #     )
 
     def allow_multiple_confirmations(self, confs: list[Confirmation]) -> CORO[None]:
         """Shorthand for `send_multiple_confirmations(conf, 'allow')`."""

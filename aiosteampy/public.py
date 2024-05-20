@@ -69,6 +69,8 @@ class SteamPublicMixin:
         while more_items:
             params_pag = {**params, "start_assetid": last_assetid} if last_assetid else params
             data = await self._fetch_inventory(url, params_pag, headers)
+            if data.get("total_inventory_count",1) == 0:
+                break
             more_items = data.get("more_items", False)
             if more_items:
                 last_assetid = data.get("last_assetid")
@@ -110,7 +112,7 @@ class SteamPublicMixin:
         steam_id: int,
         item_descrs_map: dict[str, dict],
     ) -> list[EconItem]:
-        for d_data in data["descriptions"]:
+        for d_data in data.get("descriptions"):
             key = d_data["classid"]
             if key not in item_descrs_map:
                 item_descrs_map[key] = cls._create_item_description_kwargs(d_data, data["assets"])

@@ -1,24 +1,25 @@
+"""Useful utility functions."""
+
 import asyncio
 from base64 import b64decode, b64encode
+from datetime import datetime
 from struct import pack, unpack
 from time import time as time_time
 from hmac import new as hmac_new
 from hashlib import sha1
-from functools import wraps
-from typing import Callable, overload, ParamSpec, TypeVar, TYPE_CHECKING, TypeAlias
+from functools import wraps, partial
+from typing import Callable, overload, TypeVar, TypeAlias
 from http.cookies import SimpleCookie, Morsel
 from math import floor
 from secrets import token_hex
-from re import search as re_search
+from re import search as re_search, compile as re_compile
 from json import loads as j_loads
 
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientResponse
 from yarl import URL
 
 from .typed import JWTToken
 
-if TYPE_CHECKING:
-    from .client import SteamCommunityMixin
 
 __all__ = (
     "gen_two_factor_code",
@@ -27,6 +28,7 @@ __all__ = (
     "extract_openid_payload",
     "do_session_steam_auth",
     "get_cookie_value_from_session",
+    "remove_cookie_from_session",
     "async_throttle",
     "create_ident_code",
     "account_id_to_steam_id",
@@ -34,12 +36,17 @@ __all__ = (
     "id64_to_id32",
     "id32_to_id64",
     "to_int_boolean",
-    "restore_from_cookies",
     "get_jsonable_cookies",
+    "update_session_cookies",
     "buyer_pays_to_receive",
     "receive_to_buyer_pays",
     "generate_session_id",
     "decode_jwt",
+    "find_item_nameid_in_text",
+    "patch_session_with_http_proxy",
+    "parse_time",
+    "format_time",
+    "attribute_required",
 )
 
 
@@ -97,7 +104,7 @@ def extract_openid_payload(page_text: str) -> dict[str, str]:
     }
 
 
-async def do_session_steam_auth(session: ClientSession, auth_url: str | URL):
+async def do_session_steam_auth(session: ClientSession, auth_url: str | URL) -> ClientResponse:
     """
     Request auth page, find specs of steam openid and log in through steam with passed session.
     Use it when you need to log in 3rd party site trough Steam using only cookies.
@@ -106,6 +113,7 @@ async def do_session_steam_auth(session: ClientSession, auth_url: str | URL):
 
     :param session: just session.
     :param auth_url: url to site, which redirect you to steam login page.
+    :return: response with history, headers and data
     """
 
     r = await session.get(auth_url)
@@ -113,41 +121,46 @@ async def do_session_steam_auth(session: ClientSession, auth_url: str | URL):
 
     data = extract_openid_payload(rt)
 
-    await session.post("https://steamcommunity.com/openid/login", data=data, allow_redirects=True)
+    return await session.post("https://steamcommunity.com/openid/login", data=data, allow_redirects=True)
 
 
-def get_cookie_value_from_session(session: ClientSession, url: URL, field: str) -> str | None:
-    """Just get value from session cookies."""
+def get_cookie_value_from_session(session: ClientSession, url: URL | str, field: str) -> str | None:
+    """Get value from session cookies. Passed `url` must include scheme (for ex. `https://url.com`)."""
 
-    c = session.cookie_jar.filter_cookies(url)
+    c = session.cookie_jar.filter_cookies(URL(url))
     return c[field].value if field in c else None
 
 
-_P = ParamSpec("_P")
+def remove_cookie_from_session(session: ClientSession, url: URL | str, field: str) -> bool:
+    """Remove cookie from session cookies. Return `True` if cookie was present and removed."""
+
+    raw = str(url)
+    if "//" in raw:
+        host = raw.split("//")[1]
+    else:
+        host = raw
+    return bool(session.cookie_jar._cookies[(host, "/")].pop(field, None))
+
+
 _R = TypeVar("_R")
 
 
 @overload
-def async_throttle(seconds: float, *, arg_index: int):
+def async_throttle(seconds: float, *, arg_index: int) -> Callable[[Callable[..., _R]], Callable[..., _R]]:
     ...
 
 
 @overload
-def async_throttle(seconds: float, *, arg_name: str):
+def async_throttle(seconds: float, *, arg_name: str) -> Callable[[Callable[..., _R]], Callable[..., _R]]:
     ...
 
 
 @overload
-def async_throttle(seconds: float):
+def async_throttle(seconds: float) -> Callable[[Callable[..., _R]], Callable[..., _R]]:
     ...
 
 
-def async_throttle(
-    seconds: float,
-    *,
-    arg_index: int = None,
-    arg_name: str = None,
-) -> Callable[[Callable[_P, _R]], Callable[_P, _R]]:
+def async_throttle(seconds, *, arg_index=None, arg_name=None):
     """
     Prevents the decorated function from being called more than once per `seconds`.
     Throttle (`await asyncio.sleep`) before call wrapped async func,
@@ -173,9 +186,9 @@ def async_throttle(
 
     ts_map: dict[..., float] = {}
 
-    def decorator(f: Callable[_P, _R]) -> Callable[_P, _R]:
+    def decorator(f: Callable[..., _R]) -> Callable[..., _R]:
         @wraps(f)
-        async def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        async def wrapper(*args, **kwargs) -> _R:
             key = get_key(args, kwargs)
             ts = time_time()
             diff = ts - ts_map.get(key, 0)
@@ -192,24 +205,24 @@ def async_throttle(
     return decorator
 
 
-def create_ident_code(obj_id: int | str, app_id: int | str, context_id: int | str = None) -> str:
+@overload
+def create_ident_code(asset_id: int | str, context_id: int | str, app_id: int | str, *, sep: str = ...) -> str:
+    ...
+
+
+@overload
+def create_ident_code(instance_id: int | str, class_id: int | str, app_id: int | str, *, sep: str = ...) -> str:
+    ...
+
+
+def create_ident_code(*args, sep=":"):
     """
-    Create unique ident code for :class:`aiosteampy.models.EconItem` asset or item class
-    (description) within whole Steam Economy.
+    Create unique ident code for `EconItem` asset or `ItemDescription` within whole `Steam Economy`.
 
     .. seealso:: https://dev.doctormckay.com/topic/332-identifying-steam-items/
-
-    :param obj_id: asset or class id of Steam Economy Item
-    :param app_id: app id of Steam Game
-    :param context_id: context id of Steam Game. Only for `EconItem`
-    :return: ident code
     """
 
-    code = f"{obj_id}_{app_id}"
-    if context_id is not None:
-        code += f"_{context_id}"
-
-    return code
+    return sep.join(reversed(list(str(i) for i in filter(lambda i: i is not None, args))))
 
 
 def steam_id_to_account_id(steam_id: int) -> int:
@@ -237,42 +250,21 @@ def to_int_boolean(s):
 JSONABLE_COOKIE_JAR: TypeAlias = list[dict[str, dict[str, str, None, bool]]]
 
 
-async def restore_from_cookies(
-    cookies: JSONABLE_COOKIE_JAR,
-    client: "SteamCommunityMixin",
-    *,
-    init_data=False,
-    **init_kwargs,
-):
-    """
-    Helper func. Restore client session from cookies.
-    Login if session is not alive.
-    """
+def update_session_cookies(session: ClientSession, cookies: JSONABLE_COOKIE_JAR):
+    """Update the session cookies from jsonable cookie jar."""
 
-    prepared = []
     for cookie_data in cookies:
         c = SimpleCookie()
         for k, v in cookie_data.items():
+            copied = dict(**v)  # copy to avoid modification of the arg
             m = Morsel()
-            m._value = v.pop("value")
-            m._key = v.pop("key")
-            m._coded_value = v.pop("coded_value")
-            m.update(v)
+            m._value = copied.pop("value")
+            m._key = copied.pop("key")
+            m._coded_value = copied.pop("coded_value")
+            m.update(copied)
             c[k] = m
 
-            if m.key == "steamLoginSecure":
-                try:
-                    client._access_token = m.value.split("%7C%7C")[1]
-                except IndexError:
-                    pass
-
-        prepared.append(c)
-
-    for c in prepared:
-        client.session.cookie_jar.update_cookies(c)
-
-    client._is_logged = True
-    init_data and await client._init_data()
+        session.cookie_jar.update_cookies(c)
 
 
 def get_jsonable_cookies(session: ClientSession) -> JSONABLE_COOKIE_JAR:
@@ -380,12 +372,9 @@ def buyer_pays_to_receive(
     return s_fee, p_fee, int(v - s_fee - p_fee)
 
 
+# https://github.com/DoctorMcKay/node-steam-session/blob/698469cdbad3e555dda10c81f580f1ee3960156f/src/LoginSession.ts#L801C19-L801C50
 def generate_session_id() -> str:
-    """
-    Generate steam like session id.
-
-    .. seealso:: https://github.com/DoctorMcKay/node-steam-session/blob/698469cdbad3e555dda10c81f580f1ee3960156f/src/LoginSession.ts#L801C19-L801C50
-    """
+    """Generate steam like session id."""
 
     # Hope ChatGPT knows what she is doing
     return token_hex(12)
@@ -399,6 +388,41 @@ def decode_jwt(token: str) -> JWTToken:
     return j_loads(b64decode(parts[1] + "==", altchars="-_"))
 
 
+_ITEM_NAMEID_RE = re_compile(r"Market_LoadOrderSpread\(\s?(?P<nameid>\d+)\s?\)")
+
+
+def find_item_nameid_in_text(text: str) -> int | None:
+    """Find and return`item_nameid` in HTML text response from `Steam Community Market` page"""
+
+    res = _ITEM_NAMEID_RE.search(text)
+    return int(res["nameid"]) if res is not None else res
+
+
+def patch_session_with_http_proxy(session: ClientSession, proxy: str | URL) -> ClientSession:
+    session._request = partial(session._request, proxy=proxy)
+    return session
+
+
+_HEADER_TIME_FORMAT = "%a, %d %b %Y %H:%M:%S %Z"
+
+
+def parse_time(value: str) -> datetime:
+    """
+    Parse header time (`Last-Modified`, `Expires`, ...),
+    cookie `expires` fields to a timezone naive datetime object
+    """
+
+    return datetime.strptime(value, _HEADER_TIME_FORMAT)
+
+
+def format_time(d: datetime) -> str:
+    """Format timezone naive datetime object to header/cookie acceptable string"""
+
+    return d.strftime(_HEADER_TIME_FORMAT) + "GMT"  # simple case
+
+
+# generic, but less performant due to getattr
+# without typing, PyCharm complains about return type while VsCode not
 def attribute_required(attr: str, msg: str = None):
     """Generate a decorator that check required `attr` on instance before call a wrapped method"""
 

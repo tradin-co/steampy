@@ -1,10 +1,12 @@
-from typing import TYPE_CHECKING, overload, Literal, TypeAlias, Type, Callable
 from datetime import datetime
+from decimal import Decimal
 from math import floor
+from typing import TYPE_CHECKING, overload, Literal, TypeAlias, Type, Callable
 
 from aiohttp import ClientResponseError
 from yarl import URL
 
+from .constants import STEAM_URL, GameType, MarketListingStatus, MarketHistoryEventType
 from .exceptions import ApiError, SessionExpired
 from .models import (
     EconItem,
@@ -20,7 +22,6 @@ from .models import (
     ITEM_DESCR_TUPLE,
 )
 from .typed import WalletInfo
-from .constants import STEAM_URL, GameType, MarketListingStatus, MarketHistoryEventType, T_KWARGS
 from .utils import create_ident_code, buyer_pays_to_receive
 
 if TYPE_CHECKING:
@@ -65,12 +66,12 @@ class MarketMixin:
 
     @overload
     async def place_sell_listing(
-        self,
-        asset: int,
-        game: GameType,
-        *,
-        price: int,
-        confirm: Literal[False] = ...,
+            self,
+            asset: int,
+            game: GameType,
+            *,
+            price: int,
+            confirm: Literal[False] = ...,
     ) -> None:
         ...
 
@@ -80,24 +81,24 @@ class MarketMixin:
 
     @overload
     async def place_sell_listing(
-        self,
-        asset: int,
-        game: GameType,
-        *,
-        to_receive: int,
-        confirm: Literal[False] = ...,
+            self,
+            asset: int,
+            game: GameType,
+            *,
+            to_receive: int,
+            confirm: Literal[False] = ...,
     ) -> None:
         ...
 
     async def place_sell_listing(
-        self: "SteamCommunityMixin",
-        asset: EconItem | int,
-        game: GameType = None,
-        *,
-        price: int = None,
-        to_receive: int = None,
-        confirm=True,
-        **kwargs: T_KWARGS,
+            self: "SteamCommunityMixin",
+            asset: EconItem | int,
+            game: GameType = None,
+            *,
+            price: int = None,
+            to_receive: int = None,
+            confirm=True,
+            **kwargs,
     ) -> int | None:
         """
         Create and place sell listing.
@@ -161,14 +162,15 @@ class MarketMixin:
         ...
 
     async def place_buy_order(
-        self: "SteamCommunityMixin",
-        obj: str | ItemDescription,
-        app_id: int = None,
-        *,
-        price: int,
-        quantity=1,
-        **kwargs: T_KWARGS,
-    ) -> int:
+            self: "SteamCommunityMixin",
+            obj: str | ItemDescription,
+            app_id: int = None,
+            *,
+            price: int,
+            currency: int,
+            quantity=1,
+            **kwargs,
+    ):
         """
         Place buy order on market.
 
@@ -188,20 +190,20 @@ class MarketMixin:
 
         data = {
             "sessionid": self.session_id,
-            "currency": self._wallet_currency.value,
+            "currency": currency,
             "appid": app_id,
             "market_hash_name": name,
-            "price_total": price * quantity,
+            "price_total": str(Decimal(price) * 100 * Decimal(quantity)),
             "quantity": quantity,
             **kwargs,
         }
         headers = {"Referer": str(STEAM_URL.MARKET / f"listings/{app_id}/{name}")}
         r = await self.session.post(STEAM_URL.MARKET / "createbuyorder/", data=data, headers=headers)
         rj: dict = await r.json()
-        if not rj.get("success"):
+        if not rj or not rj.get("success"):
             raise ApiError("Failed to create buy order.", rj)
 
-        return int(rj["buy_orderid"])
+        return rj
 
     async def cancel_buy_order(self: "SteamCommunityMixin", order: int | BuyOrder):
         """
@@ -223,7 +225,7 @@ class MarketMixin:
         if not rj.get("success"):
             raise ApiError(f"Failed to cancel buy order [{order_id}].", rj)
 
-    async def get_my_listings(self: "SteamCommunityMixin", *, page_size=100, **kwargs: T_KWARGS) -> MY_LISTINGS:
+    async def get_my_listings(self: "SteamCommunityMixin", *, page_size=100, **kwargs) -> MY_LISTINGS:
         """
         Fetch users market listings.
 
@@ -272,9 +274,9 @@ class MarketMixin:
 
     @classmethod
     def _parse_item_descriptions_for_listings(
-        cls: Type["SteamCommunityMixin"],
-        assets: dict[str, dict[str, dict[str, dict]]],
-        item_descrs_map: dict[str, dict],
+            cls: Type["SteamCommunityMixin"],
+            assets: dict[str, dict[str, dict[str, dict]]],
+            item_descrs_map: dict[str, dict],
     ):
         for app_id, app_data in assets.items():
             for context_id, context_data in app_data.items():
@@ -284,9 +286,9 @@ class MarketMixin:
                         item_descrs_map[key] = cls._create_item_description_kwargs(a_data, [a_data])
 
     def _parse_listings(
-        self: "SteamCommunityMixin",
-        listings: list[dict],
-        item_descrs_map: dict[str, dict],
+            self: "SteamCommunityMixin",
+            listings: list[dict],
+            item_descrs_map: dict[str, dict],
     ) -> list[MyMarketListing]:
         return [
             MyMarketListing(
@@ -316,9 +318,9 @@ class MarketMixin:
 
     @classmethod
     def _parse_buy_orders(
-        cls: Type["SteamCommunityMixin"],
-        orders: list[dict],
-        item_descrs_map: dict[str, dict],
+            cls: Type["SteamCommunityMixin"],
+            orders: list[dict],
+            item_descrs_map: dict[str, dict],
     ) -> list[BuyOrder]:
         orders_list = []
         for o_data in orders:
@@ -345,24 +347,24 @@ class MarketMixin:
 
     @overload
     async def buy_market_listing(
-        self,
-        listing: int,
-        price: int,
-        market_hash_name: str,
-        game: GameType,
-        *,
-        fee: int = ...,
+            self,
+            listing: int,
+            price: int,
+            market_hash_name: str,
+            game: GameType,
+            *,
+            fee: int = ...,
     ) -> WalletInfo:
         ...
 
     async def buy_market_listing(
-        self: "SteamCommunityMixin",
-        listing: int | MarketListing,
-        price: int = None,
-        market_hash_name: str = None,
-        game: GameType = None,
-        *,
-        fee: int = None,
+            self: "SteamCommunityMixin",
+            listing: int | MarketListing,
+            price: int = None,
+            market_hash_name: str = None,
+            game: GameType = None,
+            *,
+            fee: int = None,
     ) -> WalletInfo:
         """
         Buy item listing from market.
@@ -420,10 +422,10 @@ class MarketMixin:
         return rj["wallet_info"]
 
     async def get_my_market_history(
-        self: "SteamCommunityMixin",
-        *,
-        predicate: PREDICATE = None,
-        page_size=500,
+            self: "SteamCommunityMixin",
+            *,
+            predicate: PREDICATE = None,
+            page_size=500,
     ) -> list[MarketHistoryEvent]:
         url = STEAM_URL.MARKET / "myhistory"
         params = {"norender": 1, "start": 0, "count": page_size}
@@ -451,9 +453,9 @@ class MarketMixin:
 
     @staticmethod
     def _parse_assets_for_history_listings(
-        data: dict[str, dict[str, dict[str, dict]]],
-        item_descrs_map: dict[str, dict],
-        econ_item_map: dict[str, MarketHistoryListingItem],
+            data: dict[str, dict[str, dict[str, dict]]],
+            item_descrs_map: dict[str, dict],
+            econ_item_map: dict[str, MarketHistoryListingItem],
     ):
         for app_id, app_data in data.items():
             for context_id, context_data in app_data.items():
@@ -475,9 +477,9 @@ class MarketMixin:
 
     @staticmethod
     def _parse_history_listings(
-        data: dict[str, dict[str, dict]],
-        econ_item_map: dict[str, MarketHistoryListingItem],
-        listings_map: dict[str, MarketHistoryListing],
+            data: dict[str, dict[str, dict]],
+            econ_item_map: dict[str, MarketHistoryListingItem],
+            listings_map: dict[str, MarketHistoryListing],
     ):
         for l_id, l_data in data["listings"].items():
             if l_id not in listings_map:
@@ -517,8 +519,8 @@ class MarketMixin:
 
     @staticmethod
     def _parse_history_events(
-        data: dict[str, list[dict] | dict[str, dict]],
-        listings_map: dict[str, MarketHistoryListing],
+            data: dict[str, list[dict] | dict[str, dict]],
+            listings_map: dict[str, MarketHistoryListing],
     ) -> list[MarketHistoryEvent]:
         events = []
         for e_data in data["events"]:

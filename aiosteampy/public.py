@@ -3,6 +3,8 @@ from typing import Callable, TypeAlias, overload, TYPE_CHECKING
 from aiohttp import ClientResponseError
 from yarl import URL
 
+from .constants import STEAM_URL, Game, Currency, GameType, Language
+from .exceptions import ApiError
 from .models import (
     ItemDescriptionEntry,
     ItemTag,
@@ -13,9 +15,7 @@ from .models import (
     MarketListingItem,
     ITEM_DESCR_TUPLE,
 )
-from .constants import STEAM_URL, Game, Currency, GameType, Language, T_KWARGS
 from .typed import ItemOrdersHistogram, ItemOrdersActivity, PriceOverview
-from .exceptions import ApiError
 from .utils import create_ident_code
 
 if TYPE_CHECKING:
@@ -44,7 +44,7 @@ class SteamPublicMixin:
         *,
         predicate: PREDICATE = None,
         page_size=INV_PAGE_SIZE,
-        **kwargs: T_KWARGS,
+        **kwargs,
     ) -> list[EconItem]:
         """
         Fetches inventory of user.
@@ -158,20 +158,20 @@ class SteamPublicMixin:
     @classmethod
     def _create_item_description_kwargs(cls, data: dict, assets: list[dict[str, int | str]]) -> dict:
         return dict(
-            class_id=int(data["classid"]),
-            instance_id=int(data["instanceid"]),
+            class_id=int(data.get("classid")),
+            instance_id=int(data.get("instanceid")),
             game=cls._find_game_for_asset(data, assets),
-            name=data["name"],
-            market_name=data["market_name"],
-            market_hash_name=data["market_hash_name"],
-            name_color=data["name_color"] or None,
-            background_color=data.get("name_color") or None,
-            type=data["type"] or None,
-            icon=data["icon_url"],
+            name=data.get("name"),
+            market_name=data.get("market_name"),
+            market_hash_name=data.get("market_hash_name"),
+            name_color=data.get("name_color") or None,
+            background_color=data.get("background_color") or None,
+            type=data.get("type") or None,
+            icon=data.get("icon_url"),
             icon_large=data.get("icon_url_large"),
-            commodity=bool(data["commodity"]),
-            tradable=bool(data["tradable"]),
-            marketable=bool(data["marketable"]),
+            commodity=bool(data.get("commodity")),
+            tradable=bool(data.get("tradable")),
+            marketable=bool(data.get("marketable")),
             market_tradable_restriction=data.get("market_tradable_restriction"),
             market_buy_country_restriction=data.get("market_buy_country_restriction"),
             market_fee_app=data.get("market_fee_app"),
@@ -182,17 +182,17 @@ class SteamPublicMixin:
             tags=cls._create_item_tags(data.get("tags", ())),
             descriptions=cls._create_item_description_entries(data.get("descriptions", ())),
             owner_descriptions=cls._create_item_description_entries(data.get("owner_descriptions", ())),
-            fraud_warnings=tuple(*data.get("fraudwarnings", ())),
+            fraud_warnings=tuple(data.get("fraudwarnings", ())),
         )
 
     async def fetch_item_orders_histogram(
         self: "SteamPublicClient",
-        item_nameid: int,
+        item_name_id: int,
         *,
         lang: Language = None,
         country: str = None,
         currency: Currency = None,
-        **kwargs: T_KWARGS,
+        **kwargs,
     ) -> ItemOrdersHistogram:
         """
         Do what described in method name.
@@ -216,13 +216,13 @@ class SteamPublicMixin:
             "language": lang or self.language,
             "country": country or self.country,
             "currency": currency or self.currency,
-            "item_nameid": item_nameid,
+            "item_nameid": item_name_id,
             **kwargs,
         }
         r = await self.session.get(STEAM_URL.MARKET / "itemordershistogram", params=params)
         rj: ItemOrdersHistogram = await r.json()
         if not rj.get("success"):
-            raise ApiError(f"Can't fetch item orders histogram for {item_nameid}.", rj)
+            raise ApiError(f"Can't fetch item orders histogram for {item_name_id}.", rj)
 
         return rj
 
@@ -233,7 +233,7 @@ class SteamPublicMixin:
         lang: Language = None,
         country: str = None,
         currency: Currency = None,
-        **kwargs: T_KWARGS,
+        **kwargs,
     ) -> ItemOrdersActivity:
         """
         Do what described in method name.
@@ -293,7 +293,7 @@ class SteamPublicMixin:
         *,
         country: str = None,
         currency: Currency = None,
-        **kwargs: T_KWARGS,
+        **kwargs,
     ) -> PriceOverview:
         """
         Fetch price data.
@@ -366,7 +366,7 @@ class SteamPublicMixin:
         query="",
         start: int = 0,
         count: int = 10,
-        **kwargs: T_KWARGS,
+        **kwargs,
     ) -> ITEM_MARKET_LISTINGS_DATA:
         """
         Fetch item listings from market.

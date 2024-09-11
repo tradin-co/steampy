@@ -5,6 +5,7 @@ from http.cookies import SimpleCookie
 
 from aiohttp import ClientSession
 from aiohttp.client import _RequestContextManager
+from aiosteampy import EResult, EResultError
 from yarl import URL
 
 from .http import SteamHTTPTransportMixin
@@ -170,17 +171,24 @@ class SteamCommunityMixin(
 
         return info
 
-    async def get_wallet_balance(self) -> int:
-        """Fetch wallet balance and currency."""
+    async def get_wallet_info(self) -> WalletInfo:
+        """
+        Fetch wallet info from inventory page.
 
-        # Why is this endpoint do not work sometimes?
-        r = await self.session.get(STEAM_URL.STORE / "api/getfundwalletinfo")
-        rj = await r.json()
-        if not rj.get("success"):
-            raise ApiError("Failed to fetch wallet info.", rj)
+        .. note:: May reset new items notifications count.
 
-        self._wallet_currency = Currency.by_name(rj["user_wallet"]["currency"])
-        return int(rj["user_wallet"]["amount"])
+        :return: wallet info
+        :raises EResultError: for ordinary reasons
+        """
+
+        r = await self.session.get(self.profile_url / "inventory", headers={"Referer": str(self.profile_url)})
+        rt = await r.text()
+        info: WalletInfo = loads(re_search(r"g_rgWalletInfo = (?P<info>.+);", rt)["info"])
+        success = EResult(info.get("success"))
+        if success is not EResult.OK:
+            raise EResultError(info.get("message", "Failed to fetch wallet info from inventory"), success, info)
+
+        return info
 
     async def register_new_trade_url(self) -> URL:
         """Register new trade url. Cache token."""

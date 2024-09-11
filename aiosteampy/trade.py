@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, overload, Literal, Type, TypeAlias, Callable
 
 from yarl import URL
 
-from .constants import STEAM_URL, CORO, T_KWARGS
+from .constants import STEAM_URL, CORO
 from .exceptions import ApiError
 from .models import (
     TradeOffer,
@@ -190,7 +190,7 @@ class TradeMixin:
             historical_only=False,
             sent=True,
             received=True,
-            **kwargs: T_KWARGS,
+            **kwargs,
     ):
         # -> TRADE_OFFERS:
         """
@@ -258,7 +258,7 @@ class TradeMixin:
 
         return rj["response"]
 
-    async def get_trade_receipt(self: "SteamCommunityMixin", offer_id: int, **kwargs: T_KWARGS) -> HistoryTradeOffer:
+    async def get_trade_receipt(self: "SteamCommunityMixin", offer_id: int, **kwargs) -> HistoryTradeOffer:
         """Fetch single trade offer from history."""
 
         params = {
@@ -292,7 +292,7 @@ class TradeMixin:
             start_after_trade_id=0,
             navigating_back=False,
             include_failed=True,
-            **kwargs: T_KWARGS,
+            **kwargs,
     ) -> tuple[list[HistoryTradeOffer], int]:
         """
         Fetch history trades with changed assets data.
@@ -500,7 +500,7 @@ class TradeMixin:
             token: str = None,
             confirm=True,
             countered_id: int = None,
-            **kwargs: T_KWARGS,
+            **kwargs,
     ) -> int:
         """
         Make (send) steam trade offer to partner.
@@ -616,7 +616,7 @@ class TradeMixin:
             *,
             partner_id: int = None,
             confirm=True,
-            **kwargs: T_KWARGS,
+            **kwargs,
     ) -> CORO[int]:
         """
         Counter trade offer with another.

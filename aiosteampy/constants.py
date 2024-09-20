@@ -117,6 +117,9 @@ class Currency(IntEnum):  # already params serializable
     def value_of(int_value: int) -> "Currency":
         return Currency(int_value)
 
+    def __str__(self):
+        return self.name
+
 class Language(str, Enum):  # need for params serialization
     """
     Steam languages.

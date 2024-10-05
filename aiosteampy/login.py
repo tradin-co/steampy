@@ -66,7 +66,7 @@ class LoginMixin:
         if loop.is_running() and self.session:
             loop.create_task(self.session.close())
 
-    async def login(self: "SteamCommunityMixin", *, init_data=True, init_session=True):
+    async def login(self: "SteamCommunityMixin", *, init_data=False, init_session=True):
         """
         Perform login.
         Populate `api_key`, `trade_token`, `wallet_country`, `wallet_currency` fields if it is required.

@@ -422,6 +422,16 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
         if raw:
             return rj
 
+        sell_order_table = rj.get("sell_order_table", [])
+        sell_order_table = sell_order_table if isinstance(sell_order_table, list) else []
+        buy_order_table = rj.get("buy_order_table", [])
+        buy_order_table = buy_order_table if isinstance(buy_order_table, list) else []
+        buy_order_graph = rj.get("buy_order_graph", [])
+        buy_order_graph = buy_order_graph if isinstance(buy_order_graph, list) else []
+        sell_order_graph = rj.get("sell_order_graph", [])
+        sell_order_graph = sell_order_graph if isinstance(sell_order_graph, list) else []
+        highest_buy_order = rj.get("highest_buy_order", 0) if rj.get("highest_buy_order") else -1
+
         # model parsing
         return ItemOrdersHistogram(
             sell_order_count=self._parse_item_order_histogram_count(rj["sell_order_count"]),
@@ -432,7 +442,7 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
                     self._parse_item_order_histogram_price(d["price_with_fee"]),
                     self._parse_item_order_histogram_count(d["quantity"]),
                 )
-                for d in rj["sell_order_table"]
+                for d in sell_order_table
             ],
             buy_order_count=self._parse_item_order_histogram_count(rj["buy_order_count"]),
             buy_order_price=self._parse_item_order_histogram_price(rj["buy_order_price"]),
@@ -441,12 +451,12 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
                     self._parse_item_order_histogram_price(d["price"]),
                     self._parse_item_order_histogram_count(d["quantity"]),
                 )
-                for d in rj["buy_order_table"]
+                for d in buy_order_table
             ],
-            highest_buy_order=int(rj["highest_buy_order"]),
-            lowest_sell_order=int(rj["lowest_sell_order"]),
-            buy_order_graph=[OrderGraphEntry(int(d[0] * 100), d[1], d[2]) for d in rj["buy_order_graph"]],
-            sell_order_graph=[OrderGraphEntry(int(d[0] * 100), d[1], d[2]) for d in rj["sell_order_graph"]],
+            highest_buy_order=int(rj["highest_buy_order"] if rj.get("highest_buy_order") else -1),
+            lowest_sell_order=int(rj["lowest_sell_order"] if rj.get("lowest_sell_order") else -1),
+            buy_order_graph=[OrderGraphEntry(int(d[0] * 100), d[1], d[2]) for d in buy_order_graph],
+            sell_order_graph=[OrderGraphEntry(int(d[0] * 100), d[1], d[2]) for d in sell_order_graph],
             graph_max_y=rj["graph_max_y"],
             graph_min_x=int(rj["graph_min_x"] * 100),
             graph_max_x=int(rj["graph_max_x"] * 100),
@@ -454,6 +464,9 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
 
     @staticmethod
     def _parse_item_order_histogram_count(text: str) -> int:
+        if not text:
+            return -1
+        text = str(text)
         if "." in text:
             count_raw = text.replace(".", "")
         elif "," in text:  # to be sure
@@ -465,6 +478,9 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
 
     @staticmethod
     def _parse_item_order_histogram_price(text: str) -> int:
+        if not text:
+            return -1
+        text = str(text)
         raw_price = ITEM_ORDER_HIST_PRICE_RE.search(text).group(1)
 
         if "," in raw_price:  # 163,46₴

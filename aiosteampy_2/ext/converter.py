@@ -113,7 +113,7 @@ class CurrencyConverter(UserDict[Currency, tuple[float, datetime]]):
         wait = (when - utcnow) + timedelta(minutes=1)  # offset to ensure that service finish to update rates
         return wait.total_seconds()
 
-    def convert(self, amount: int, currency: Currency, target=Currency.USD) -> int:
+    def convert(self, amount , currency: Currency, target=Currency.USD):
         """
         Convert amount from `currency` to `target` currency.
 
@@ -127,9 +127,8 @@ class CurrencyConverter(UserDict[Currency, tuple[float, datetime]]):
         source_rate = self[currency][0] if currency is not Currency.USD else 1
         target_rate = self[target][0] if target is not Currency.USD else 1
 
-        # direct conversion
-        # return round(amount * (target_rate / source_rate))
+        return round(amount * (target_rate / source_rate),2)
 
-        # with USD in middle step
-        usd_amount = round(amount * (1 / source_rate))
-        return round(usd_amount * target_rate)
+        # # with USD in middle step
+        # usd_amount = round(amount * (1 / source_rate))
+        # return round(usd_amount * target_rate)

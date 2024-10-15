@@ -412,7 +412,7 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
                 raise e
 
         if r.status == 304:  # not modified if header "If-Modified-Since" is provided
-            raise ResourceNotModified
+            raise ResourceNotModified("Resource not modified")
 
         rj: ItemOrdersHistogramData = await r.json()
         success = EResult(rj.get("success"))

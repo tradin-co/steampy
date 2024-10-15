@@ -367,7 +367,7 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
         if_modified_since: datetime | str = None,
         params: T_PARAMS = {},
         headers: T_HEADERS = {},
-    ) -> ItemOrdersHistogramData | ItemOrdersHistogram:
+    ) -> tuple[ItemOrdersHistogramData | ItemOrdersHistogram, datetime]:
         """
         Do what described in method name.
 
@@ -419,8 +419,10 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
         if success is not EResult.OK:
             raise EResultError(rj.get("message", "Failed to fetch items order histogram"), success, rj)
 
+        last_modified = parse_time(r.headers["Last-Modified"])
+
         if raw:
-            return rj
+            return rj , last_modified
 
         sell_order_table = rj.get("sell_order_table", [])
         sell_order_table = sell_order_table if isinstance(sell_order_table, list) else []
@@ -430,7 +432,6 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
         buy_order_graph = buy_order_graph if isinstance(buy_order_graph, list) else []
         sell_order_graph = rj.get("sell_order_graph", [])
         sell_order_graph = sell_order_graph if isinstance(sell_order_graph, list) else []
-        highest_buy_order = rj.get("highest_buy_order", 0) if rj.get("highest_buy_order") else -1
 
         # model parsing
         return ItemOrdersHistogram(
@@ -460,7 +461,7 @@ class SteamCommunityPublicMixin(SteamHTTPTransportMixin):
             graph_max_y=rj["graph_max_y"],
             graph_min_x=int(rj["graph_min_x"] * 100),
             graph_max_x=int(rj["graph_max_x"] * 100),
-        )
+        ), last_modified
 
     @staticmethod
     def _parse_item_order_histogram_count(text: str) -> int:

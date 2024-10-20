@@ -57,9 +57,21 @@ class LoginMixin:
         return self.username.lower() in rt.lower()
 
     async def get_web_token(self: "SteamCommunityMixin"):
-        r = await self.session.get("https://steamcommunity.com/pointssummary/ajaxgetasyncconfig")
-        rj = await r.json()
-        return rj
+        url = 'https://steamcommunity.com/pointssummary/ajaxgetasyncconfig'
+        # Check if the response is 403 or if the content type is not JSON
+        async with self.session.session.get(url) as response:
+            if response.status == 403 or response.content_type != 'application/json':
+                # Print or log the HTML response to understand what went wrong
+                text_response = await response.text()
+                print("Received non-JSON response:", text_response)
+                raise ClientResponseError(
+                    request_info=response.request_info,
+                    history=response.history,
+                    status=response.status,
+                    message='Forbidden or unexpected content type',
+                    headers=response.headers
+                )
+            return await response.json()  # Pars
 
     def __del__(self: "SteamCommunityMixin"):
         loop = asyncio.get_event_loop()

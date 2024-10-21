@@ -59,7 +59,7 @@ class LoginMixin:
     async def get_web_token(self: "SteamCommunityMixin"):
         url = 'https://steamcommunity.com/pointssummary/ajaxgetasyncconfig'
         # Check if the response is 403 or if the content type is not JSON
-        async with self.session.session.get(url) as response:
+        async with self.session.get(url) as response:
             if response.status == 403 or response.content_type != 'application/json':
                 # Print or log the HTML response to understand what went wrong
                 text_response = await response.text()

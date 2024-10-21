@@ -63,12 +63,11 @@ class LoginMixin:
             if response.status == 403 or response.content_type != 'application/json':
                 # Print or log the HTML response to understand what went wrong
                 text_response = await response.text()
-                print("Received non-JSON response:", text_response)
                 raise ClientResponseError(
                     request_info=response.request_info,
                     history=response.history,
                     status=response.status,
-                    message='Forbidden or unexpected content type',
+                    message=text_response,
                     headers=response.headers
                 )
             return await response.json()  # Pars

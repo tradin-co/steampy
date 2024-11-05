@@ -24,6 +24,7 @@ API_HEADERS = {
     "sec-fetch-dest": "empty",
 }
 
+loger = logging.getLogger(__name__)
 
 class LoginMixin:
     """Mixin with login logic methods."""
@@ -224,6 +225,8 @@ class LoginMixin:
             data=data,
             headers={**API_HEADERS, **REFERER_HEADER},
         )
+        if r.content_type != "application/json":
+            loger.info(f"Finalize login response: {r.text()}")
         rj: dict = await r.json()
 
         if rj and rj.get("error"):

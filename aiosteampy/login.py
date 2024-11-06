@@ -226,7 +226,7 @@ class LoginMixin:
             headers={**API_HEADERS, **REFERER_HEADER},
         )
         if r.content_type != "application/json":
-            loger.info(f"Finalize login response: {r.text()}")
+            loger.info(f"Finalize login response: {await r.text()}")
         rj: dict = await r.json()
 
         if rj and rj.get("error"):

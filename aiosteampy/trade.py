@@ -281,7 +281,7 @@ class TradeMixin:
     async def get_trade_receipt_html(self: "SteamCommunityMixin", trade_id: int):
         r = await  self.session.get(f'https://steamcommunity.com/trade/{trade_id}/receipt')
         html = await r.text()
-        items = [json.loads(item) for item in texts_between(html, 'oItem = ', ';\r\n\toItem')]
+        items = [json.loads(item) for item in texts_between(html, 'oItem = ', ';\n\toItem.appid')]
         return items
 
     async def get_trade_history(

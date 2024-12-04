@@ -1141,7 +1141,7 @@ class MarketMixin(ConfirmationMixin, SteamCommunityPublicMixin):
 
         return [
             PriceHistoryEntry(
-                date=datetime.strptime(e_data[0], "%b %d %Y"),
+                timestamp=int(e_data[0].timestamp()),
                 price=e_data[1],
                 daily_volume=int(e_data[2]),
             )

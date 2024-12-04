@@ -336,7 +336,7 @@ class MarketHistoryEvent:
 
 @dataclass(eq=False, slots=True)
 class PriceHistoryEntry:
-    date: datetime
+    timestamp: int
     price: float  # float from steam
     daily_volume: int
 

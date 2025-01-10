@@ -457,6 +457,8 @@ class TradeMixin:
         url_base = STEAM_URL.TRADE / str(offer_id)
         r = await self.session.post(url_base / "accept", data=data, headers={"Referer": str(url_base)})
         rj: dict = await r.json()
+        if rj is None:
+            raise ApiError(f"Can't accept trade offer resp {await r.text()}.")
         if rj.get("needs_mobile_confirmation"):
             await self.confirm_trade_offer(offer_id)
 

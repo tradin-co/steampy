@@ -253,10 +253,14 @@ class MarketMixin:
             else:
                 more_listings = False
 
-            self._parse_item_descriptions_for_listings(data["assets"], item_descrs_map)
-            active.extend(self._parse_listings(data["listings"], item_descrs_map))
-            to_confirm.extend(self._parse_listings(data["listings_to_confirm"], item_descrs_map))
-            buy_orders.extend(self._parse_buy_orders(data["buy_orders"], item_descrs_map))
+            if data["assets"]:
+                self._parse_item_descriptions_for_listings(data["assets"], item_descrs_map)
+            if data["listings"]:
+                active.extend(self._parse_listings(data["listings"], item_descrs_map))
+            if data["listings_to_confirm"]:
+                to_confirm.extend(self._parse_listings(data["listings_to_confirm"], item_descrs_map))
+            if data["buy_orders"]:
+                buy_orders.extend(self._parse_buy_orders(data["buy_orders"], item_descrs_map))
 
         return active, to_confirm, buy_orders
 
@@ -278,6 +282,8 @@ class MarketMixin:
             assets: dict[str, dict[str, dict[str, dict]]],
             item_descrs_map: dict[str, dict],
     ):
+        if not assets:
+            return
         for app_id, app_data in assets.items():
             for context_id, context_data in app_data.items():
                 for a_data in context_data.values():

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, overload, Literal, Type, TypeAlias, Callable
 from yarl import URL
 
 from .constants import STEAM_URL, CORO
-from .exceptions import ApiError
+from .exceptions import ApiError, SteamForbiddenError
 from .models import (
     TradeOffer,
     TradeOfferItem,
@@ -458,6 +458,8 @@ class TradeMixin:
         r = await self.session.post(url_base / "accept", data=data, headers={"Referer": str(url_base)})
         rj: dict = await r.json()
         if rj is None:
+            if r.status == 403:
+                raise SteamForbiddenError(f"Forbidden to accept trade offer {offer_id}.")
             raise ApiError(f"Can't accept trade offer request {data}  status {r.status} resp {await r.text()}.")
         if rj.get("needs_mobile_confirmation"):
             await self.confirm_trade_offer(offer_id)

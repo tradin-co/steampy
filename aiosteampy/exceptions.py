@@ -29,6 +29,12 @@ class ApiError(_BaseExc):
         super().__init__(msg)
         self.resp = resp
 
+class SteamForbiddenError(_BaseExc):
+    """When failed to access to some resource."""
+
+    def __init__(self, msg: str, resp: _json_types = None):
+        super().__init__(msg)
+        self.resp = resp
 
 class LoginError(ApiError):
     """When failed to do login."""

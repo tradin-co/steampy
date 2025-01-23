@@ -458,7 +458,7 @@ class TradeMixin:
         r = await self.session.post(url_base / "accept", data=data, headers={"Referer": str(url_base)})
         rj: dict = await r.json()
         if rj is None:
-            raise ApiError(f"Can't accept trade offer resp {await r.text()}.")
+            raise ApiError(f"Can't accept trade offer request {data}  status {r.status} resp {await r.text()}.")
         if rj.get("needs_mobile_confirmation"):
             await self.confirm_trade_offer(offer_id)
 

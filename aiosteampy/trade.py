@@ -556,6 +556,8 @@ class TradeMixin:
         headers = {"Referer": str(referer)}
         r = await self.session.post(base_url / "send", data=data, headers=headers)
         rj = await r.json()
+        if rj.status == 403:
+            raise SteamForbiddenError(f"Forbidden to make trade offer to {partner_id64}.")
         offer_id = int(rj["tradeofferid"])
         if confirm and rj.get("needs_mobile_confirmation"):
             offer_id = await self.confirm_trade_offer(offer_id)

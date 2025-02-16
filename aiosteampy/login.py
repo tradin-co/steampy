@@ -223,7 +223,7 @@ class LoginMixin:
         r = await self.session.post(
             STEAM_URL.LOGIN / "jwt/finalizelogin",
             data=data,
-            headers={**API_HEADERS, **REFERER_HEADER},
+            headers={**API_HEADERS, **REFERER_HEADER,"Origin": str(STEAM_URL.COMMUNITY) },
         )
         if r.content_type != "application/json":
             loger.info(f"Finalize login response: {await r.text()}")

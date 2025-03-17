@@ -244,6 +244,12 @@ class STEAM_URL:
             PollAuthSessionStatus = _Base / "PollAuthSessionStatus" / _v
             GenerateAccessTokenForApp = _Base / "GenerateAccessTokenForApp" / _v
 
+        class ITwoFactorService:
+            _Base = _API_BASE / "ITwoFactorService"
+
+            AddAuthenticator = _Base / "AddAuthenticator" / _v
+            FinalizeAddAuthenticator = _Base / "FinalizeAddAuthenticator" / _v
+
 
 T_PARAMS: TypeAlias = Mapping[str, int | str | float]
 T_PAYLOAD: TypeAlias = Mapping[str, str | int | float | bool | None | list | Mapping]

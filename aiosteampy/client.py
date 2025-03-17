@@ -19,7 +19,7 @@ from .public import SteamPublicMixin, INV_PAGE_SIZE, PREDICATE, PRIVATE_USER_EXC
 from .models import Notifications, EconItem
 from .typed import WalletInfo
 from .constants import STEAM_URL, Currency, GameType, Language
-from .exceptions import ApiError, SessionExpired
+from .exceptions import ApiError, SessionExpired, SteamForbiddenError
 from .utils import get_cookie_value_from_session, steam_id_to_account_id, account_id_to_steam_id
 
 __all__ = ("SteamClient", "SteamPublicClient", "SteamCommunityMixin")
@@ -225,7 +225,12 @@ class SteamCommunityMixin(
                   'sessionid': self.session_id,
                   'agreeToTerms': True}
         response = await self.session.post(url, data=params)
-        return await response.json()
+        if response.status ==    403 or response.status == 401:
+            raise SteamForbiddenError("Forbidden to creat API key.")
+        if response.content_type == 'application/json':
+            return await response.json()
+        else:
+            raise SteamForbiddenError("Forbidden to creat API key.")
 
 
     async def register_new_api_key(self, domain="https://github.com/somespecialone/aiosteampy") -> str:

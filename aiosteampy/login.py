@@ -7,7 +7,7 @@ from base64 import b64encode
 from aiohttp import ClientResponseError
 from rsa import PublicKey, encrypt
 
-from .exceptions import LoginError, ApiError
+from .exceptions import LoginError, ApiError, SteamForbiddenError
 from .constants import STEAM_URL
 from .utils import get_cookie_value_from_session, generate_session_id
 
@@ -64,13 +64,7 @@ class LoginMixin:
             if response.status == 403 or response.content_type != 'application/json':
                 # Print or log the HTML response to understand what went wrong
                 text_response = await response.text()
-                raise ClientResponseError(
-                    request_info=response.request_info,
-                    history=response.history,
-                    status=response.status,
-                    message=text_response,
-                    headers=response.headers
-                )
+                raise SteamForbiddenError(text_response)
             return await response.json()  # Pars
 
     def __del__(self: "SteamCommunityMixin"):

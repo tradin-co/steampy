@@ -1,16 +1,16 @@
 import asyncio
 from base64 import b64decode, b64encode
+from functools import wraps
+from hashlib import sha1
+from hmac import new as hmac_new
+from http.cookies import SimpleCookie, Morsel
+from json import loads as j_loads
+from math import floor
+from re import search as re_search
+from secrets import token_hex
 from struct import pack, unpack
 from time import time as time_time
-from hmac import new as hmac_new
-from hashlib import sha1
-from functools import wraps
 from typing import Callable, overload, ParamSpec, TypeVar, TYPE_CHECKING, TypeAlias
-from http.cookies import SimpleCookie, Morsel
-from math import floor
-from secrets import token_hex
-from re import search as re_search
-from json import loads as j_loads
 
 from aiohttp import ClientSession
 from yarl import URL
@@ -34,6 +34,7 @@ __all__ = (
     "id64_to_id32",
     "id32_to_id64",
     "to_int_boolean",
+    "update_session_cookies",
     "restore_from_cookies",
     "get_jsonable_cookies",
     "buyer_pays_to_receive",
@@ -51,7 +52,7 @@ def gen_two_factor_code(shared_secret: str, timestamp: int = None) -> str:
     time_buffer = pack(">Q", timestamp // 30)  # pack as Big endian, uint64
     time_hmac = hmac_new(b64decode(shared_secret), time_buffer, digestmod=sha1).digest()
     begin = ord(time_hmac[19:20]) & 0xF
-    full_code = unpack(">I", time_hmac[begin : begin + 4])[0] & 0x7FFFFFFF  # unpack as Big endian uint32
+    full_code = unpack(">I", time_hmac[begin: begin + 4])[0] & 0x7FFFFFFF  # unpack as Big endian uint32
     chars = "23456789BCDFGHJKMNPQRTVWXY"
     code = ""
 
@@ -143,10 +144,10 @@ def async_throttle(seconds: float):
 
 
 def async_throttle(
-    seconds: float,
-    *,
-    arg_index: int = None,
-    arg_name: str = None,
+        seconds: float,
+        *,
+        arg_index: int = None,
+        arg_name: str = None,
 ) -> Callable[[Callable[_P, _R]], Callable[_P, _R]]:
     """
     Prevents the decorated function from being called more than once per `seconds`.
@@ -237,42 +238,36 @@ def to_int_boolean(s):
 JSONABLE_COOKIE_JAR: TypeAlias = list[dict[str, dict[str, str, None, bool]]]
 
 
-async def restore_from_cookies(
-    cookies: JSONABLE_COOKIE_JAR,
-    client: "SteamCommunityMixin",
-    *,
-    init_data=False,
-    **init_kwargs,
-):
-    """
-    Helper func. Restore client session from cookies.
-    Login if session is not alive.
-    """
+def update_session_cookies(session: ClientSession, cookies: JSONABLE_COOKIE_JAR):
+    """Update the session cookies from jsonable cookie jar."""
 
-    prepared = []
     for cookie_data in cookies:
         c = SimpleCookie()
         for k, v in cookie_data.items():
+            copied = dict(**v)  # copy to avoid modification of the arg
             m = Morsel()
-            m._value = v.pop("value")
-            m._key = v.pop("key")
-            m._coded_value = v.pop("coded_value")
-            m.update(v)
+            m._value = copied.pop("value")
+            m._key = copied.pop("key")
+            m._coded_value = copied.pop("coded_value")
+            m.update(copied)
             c[k] = m
 
-            if m.key == "steamLoginSecure":
-                try:
-                    client._access_token = m.value.split("%7C%7C")[1]
-                except IndexError:
-                    pass
+        session.cookie_jar.update_cookies(c)
 
-        prepared.append(c)
 
-    for c in prepared:
-        client.session.cookie_jar.update_cookies(c)
+async def restore_from_cookies(cookies: JSONABLE_COOKIE_JAR, client: "SteamCommunityMixin") -> bool:
+    """
+    Helper func. Restore client session from cookies. Login if session is not alive.
+    Return `True` if cookies are valid and not expired.
+    """
 
-    client._is_logged = True
-    init_data and await client._init_data()
+    update_session_cookies(client.session, cookies)
+
+    if not (await client.is_session_alive()):  # session initiated here
+        await client.login(init_session=False)
+        return False
+    else:
+        return True
 
 
 def get_jsonable_cookies(session: ClientSession) -> JSONABLE_COOKIE_JAR:
@@ -297,16 +292,17 @@ def get_jsonable_cookies(session: ClientSession) -> JSONABLE_COOKIE_JAR:
             for field_key, morsel in cookie.items()
         }
         for cookie in session.cookie_jar._cookies.values()
+        if cookie  # skip empty cookies
     ]
 
 
 def receive_to_buyer_pays(
-    amount: int,
-    *,
-    publisher_fee=0.1,
-    steam_fee=0.05,
-    wallet_fee_min=1,
-    wallet_fee_base=0,
+        amount: int,
+        *,
+        publisher_fee=0.1,
+        steam_fee=0.05,
+        wallet_fee_min=1,
+        wallet_fee_base=0,
 ) -> tuple[int, int, int]:
     """
     Convert `to_receive` amount in `buyer_pays`. Mostly needed for placing sell listing.
@@ -322,12 +318,12 @@ def receive_to_buyer_pays(
 
 
 def buyer_pays_to_receive(
-    amount: int,
-    *,
-    publisher_fee=0.1,
-    steam_fee=0.05,
-    wallet_fee_min=1,
-    wallet_fee_base=0,
+        amount: int,
+        *,
+        publisher_fee=0.1,
+        steam_fee=0.05,
+        wallet_fee_min=1,
+        wallet_fee_base=0,
 ) -> tuple[int, int, int]:
     """
     Convert `buyer_pays` amount in `to_receive`. Mostly needed for placing sell listing.

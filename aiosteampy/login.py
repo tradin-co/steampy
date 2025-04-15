@@ -24,6 +24,9 @@ API_HEADERS = {
     "sec-fetch-dest": "empty",
 }
 
+STEAM_SECURE_COOKIE = "steamLoginSecure"
+STEAM_REFRESH_COOKIE = "steamRefresh_steam"
+
 loger = logging.getLogger(__name__)
 
 class LoginMixin:
@@ -52,10 +55,15 @@ class LoginMixin:
     def session_id(self: "SteamCommunityMixin") -> str | None:
         return get_cookie_value_from_session(self.session, STEAM_URL.COMMUNITY, "sessionid")
 
-    async def is_session_alive(self: "SteamCommunityMixin") -> bool:
-        r = await self.session.get(STEAM_URL.COMMUNITY)
+    async def is_session_alive(self, domain=STEAM_URL.COMMUNITY) -> bool:
+        """Check if session is alive for `Steam` domain"""
+
+        # we can also check https://steamcommunity.com/my for redirect to profile page as indicator
+        # https://github.com/DoctorMcKay/node-steamcommunity/blob/1067d4572ee9d467e8f686951901c51028c5c995/index.js#L290
+
+        r = await self.session.get(domain)
         rt = await r.text()
-        return self.username.lower() in rt.lower()
+        return self.username in rt
 
     async def get_web_token(self: "SteamCommunityMixin"):
         url = 'https://steamcommunity.com/pointssummary/ajaxgetasyncconfig'
@@ -72,15 +80,16 @@ class LoginMixin:
         if loop.is_running() and self.session:
             loop.create_task(self.session.close())
 
-    async def login(self: "SteamCommunityMixin", *, init_data=False, init_session=True):
+    async def login(self: "SteamCommunityMixin", *, init_session=True):
         """
-        Perform login.
-        Populate `api_key`, `trade_token`, `wallet_country`, `wallet_currency` fields if it is required.
+        Perform login for main `Steam` domains:
+            * https://steamcommunity.com
+            * https://store.steampowered.com
+            * https://help.steampowered.com
 
-        :param init_data: fetch initial required data (api key, trade token, wallet_currency/wallet_country)
         :param init_session: init session before start auth process.
-            Set this to False if you already make requests to steam from current client.
-        :raises ApiError: when failed to obtain rsa key, update steam guard code
+            Set this to False if you already make requests to `Steam` from current client
+        :raises EResultError: when failed to obtain rsa key, update steam guard code
         :raises LoginError: other login process errors
         """
         logging.info(f"Logging in as {self.username}")
@@ -94,15 +103,15 @@ class LoginMixin:
         fin_data = await self._finalize_login()  # there can be retrieved steam id
 
         # https://github.com/DoctorMcKay/node-steam-session/blob/64463d7468c1c860afb80164b8c5831e629f657f/src/LoginSession.ts#L845
-        transfers = [self._perform_transfer(d, fin_data["steamID"]) for d in fin_data["transfer_info"]]
-        done, _ = await asyncio.wait(transfers, return_when=asyncio.FIRST_COMPLETED)
-
-        # Transfers exception check ?
-
-        self._set_web_cookies(done.pop().result())
-
-        init_data and await self._init_data()
-
+        loop = asyncio.get_event_loop()
+        transfers = [
+            loop.create_task(self._perform_transfer(d, fin_data["steamID"])) for d in fin_data["transfer_info"]
+        ]
+        # there is no guarantee that first completed transfer will be to community and
+        # steamLoginSecure cookie will be not present yet, so better to wait until all transfers completed,
+        # and we can be sure that login process to community domain is done
+        # moreover, steam domains (store, community, help, tv, login) has own access tokens
+        await asyncio.wait(transfers, return_when=asyncio.ALL_COMPLETED)
         self._is_logged = True
 
     async def _perform_transfer(self: "SteamCommunityMixin", data: dict, steam_id: str | int = None) -> SimpleCookie:
@@ -250,23 +259,33 @@ class LoginMixin:
         )
         self._is_logged = False
 
-    async def refresh_access_token(self: "SteamCommunityMixin") -> str:
-        """"""
-        fin_data = await self._finalize_login()
-        transfers = [self._perform_transfer(d, fin_data["steamID"]) for d in fin_data["transfer_info"]]
-        done, _ = await asyncio.wait(transfers, return_when=asyncio.FIRST_COMPLETED)
+    @property
+    def access_token(self) -> str | None:
+        """
+        Encoded `JWT access token` as cookie value for `Steam Community` domain (https://steamcommunity.com).
+        Can be used to make requests to a `Steam Web API`
+        """
 
-        # TODO this
-        r = await self.session.post(
-            STEAM_URL.API.IAuthService.GenerateAccessTokenForApp,
-            data={"refresh_token": self._refresh_token, "steamid": self.steam_id},
-            headers={**API_HEADERS, **REFERER_HEADER},
+        return self.get_access_token()
+
+    def get_access_token(self, domain=STEAM_URL.COMMUNITY) -> str | None:
+        """Get encoded `JWT access token` as cookie value for `Steam Domain`"""
+
+        if token := get_cookie_value_from_session(self.session, domain, STEAM_SECURE_COOKIE):
+            return token.split("%7C%7C")[1]  # ||
+
+    async def refresh_access_token(self) -> str:
+        """Request to refresh access token by web browser method"""
+
+        res = await self.session.get(
+            STEAM_URL.LOGIN / "jwt/refresh" % {"redir": str(STEAM_URL.COMMUNITY)},
+            allow_redirects=True,
         )
-        rj = await r.json()
 
-        try:
-            self._access_token = rj["response"]["access_token"]
-        except KeyError:
-            raise ApiError("Can't renew access token.", rj)
+        # option from above still works, anyway this is new browser behavior
+        # POST to STEAM_URL.LOGIN / jwt/ajaxrefresh % {"redir": str(STEAM_URL.COMMUNITY)}
+        # j_resp, check for success
+        # POST to 'login_url' from resp, data is {**j_resp, "prior": self.access_token}
+        # j_resp, check for success
 
-        return self._access_token
+        return self.access_token

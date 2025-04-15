@@ -96,7 +96,7 @@ class TradeMixin:
         """
 
         params = {
-            "access_token": self._access_token,
+            "access_token": self.get_access_token(STEAM_URL.TRADE),
             "tradeofferid": offer_id,
             "language": self.language,
             "get_descriptions": 0,  # 1 TO GET DESCRIPTIONS
@@ -205,7 +205,7 @@ class TradeMixin:
         """
 
         params = {
-            "access_token": self._access_token,
+            "access_token": self.get_access_token(STEAM_URL.TRADE),
             "active_only": to_int_boolean(active_only),
             "get_sent_offers": to_int_boolean(sent),
             "get_received_offers": to_int_boolean(received),
@@ -262,7 +262,7 @@ class TradeMixin:
         """Fetch single trade offer from history."""
 
         params = {
-            "access_token": self._access_token,
+            "access_token": self.get_access_token(STEAM_URL.TRADE),
             "tradeid": offer_id,
             "get_descriptions": 1,
             "language": self.language,

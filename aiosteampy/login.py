@@ -1,15 +1,17 @@
 import asyncio
 import logging
+from re import search
 from typing import TYPE_CHECKING
 from http.cookies import SimpleCookie
 from base64 import b64encode
 
 from aiohttp import ClientResponseError
 from rsa import PublicKey, encrypt
+from yarl import URL
 
 from .exceptions import LoginError, ApiError, SteamForbiddenError
 from .constants import STEAM_URL
-from .utils import get_cookie_value_from_session, generate_session_id
+from .utils import get_cookie_value_from_session, generate_session_id, steam_id_to_account_id
 
 if TYPE_CHECKING:
     from .client import SteamCommunityMixin
@@ -74,6 +76,19 @@ class LoginMixin:
                 text_response = await response.text()
                 raise SteamForbiddenError(text_response)
             return await response.json()  # Pars
+
+    async def get_trade_link(self,steam_id) -> str | None:
+        """Fetch trade token from `Steam`, cache it and return"""
+
+        r = await self.session.get(STEAM_URL.COMMUNITY / f"profiles/{steam_id}" / "tradeoffers/privacy")
+        rt = await r.text()
+
+        search_res = search(r"\d+&token=(?P<token>.+)\" readonly", rt)
+        trade_token = search_res["token"] if search_res else None
+        account_id = steam_id_to_account_id(int(steam_id))
+        if trade_token:
+            return str(STEAM_URL.TRADE / "new/" % {"partner": account_id, "token": trade_token})
+        return None
 
     def __del__(self: "SteamCommunityMixin"):
         loop = asyncio.get_event_loop()

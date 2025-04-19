@@ -1,7 +1,6 @@
 from aiohttp import ClientResponseError
 
 from steampy.aiosteampy import STEAM_URL, ApiError
-from steampy.aiosteampy.client_v2 import SteamCommunityMixinV2
 from steampy.aiosteampy.login import LoginMixin, REFERER_HEADER
 from steampy.aiosteampy.utils_v2 import MailMessageProcessor
 
@@ -13,7 +12,7 @@ class LoginMixinV2(LoginMixin):
 
         super().__init__(*args, **kwargs)
 
-    async def _update_auth_session_with_steam_guard_code(self: "SteamCommunityMixinV2", session_data: dict):
+    async def _update_auth_session_with_steam_guard_code(self, session_data: dict):
         # Doesn't check allowed confirmations, but it's probably not needed
         # as steam accounts suited for trading must have a steam guard and device code.
 

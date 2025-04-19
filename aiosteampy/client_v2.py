@@ -7,9 +7,11 @@ from steampy.aiosteampy.utils_v2 import TimeAligner
 class SteamCommunityMixinV2(LoginMixinV2, SteamCommunityMixin):
 
     async def link_steam_guard(self):
-        mafile_data = await self._add_authenticator()
+        mafile_data_response = await self._add_authenticator()
+        mafile_data = mafile_data_response.get('response', {})
         self._shared_secret = mafile_data.get('shared_secret')
-        result = await self._finalize_link_steam_guard()
+        result_response = await self._finalize_link_steam_guard()
+        result = result_response.get('response', {})
         if not result.get('success'):
             raise ApiError("Error get confirmation for finalize add two factor authenticator")
         else:

@@ -558,6 +558,10 @@ class TradeMixin:
         rj = await r.json()
         if r.status == 403 or r.status == 401:
             raise SteamForbiddenError(f"Forbidden to make trade offer to {partner_id64}.")
+        if not rj.get("tradeofferid"):
+            if rj.get("strError"):
+                raise ApiError(f"Can't make trade offer [{partner_id64}]. {rj['strError']}", rj)
+            raise ApiError(f"Can't make trade offer [{partner_id64}].", rj)
         offer_id = int(rj["tradeofferid"])
         if confirm and rj.get("needs_mobile_confirmation"):
             offer_id = await self.confirm_trade_offer(offer_id)

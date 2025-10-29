@@ -1,16 +1,17 @@
 import asyncio
+import base64
 import logging
+from base64 import b64encode
+from http.cookies import SimpleCookie
 from re import search
 from typing import TYPE_CHECKING
-from http.cookies import SimpleCookie
-from base64 import b64encode
 
 from aiohttp import ClientResponseError
 from rsa import PublicKey, encrypt
-from yarl import URL
 
-from .exceptions import LoginError, ApiError, SteamForbiddenError
+from . import auth_pb2
 from .constants import STEAM_URL
+from .exceptions import LoginError, ApiError, SteamForbiddenError
 from .utils import get_cookie_value_from_session, generate_session_id, steam_id_to_account_id
 
 if TYPE_CHECKING:
@@ -170,28 +171,56 @@ class LoginMixin:
         # for web browser
         # https://github.com/DoctorMcKay/node-steam-session/blob/64463d7468c1c860afb80164b8c5831e629f657f/src/AuthenticationClient.ts#L390
         # https://github.com/DoctorMcKay/node-steam-session/blob/64463d7468c1c860afb80164b8c5831e629f657f/src/enums-steam/EAuthTokenPlatformType.ts
-        platform_data = {
-            "website_id": "Community",
-            "device_details": {
-                "device_friendly_name": self.user_agent,
-                "platform_type": 2,
-            },
-        }
 
-        data = {
-            "account_name": self.username,
-            "encrypted_password": b64encode(encrypt(self._password.encode("utf-8"), pub_key)).decode(),
-            "encryption_timestamp": ts,
-            "remember_login": "true",
-            "persistence": "1",
-            **platform_data,
-        }
+        device_details = auth_pb2.AuthSession.DeviceDetails(
+            device_friendly_name=self.user_agent,
+            platform_type=2  # соответствует Community / Web
+        )
+
+        session = auth_pb2.AuthSession        (
+                    account_name=self.username,
+                    encrypted_password=b64encode(encrypt(self._password.encode("utf-8"), pub_key)).decode(),
+                    encryption_timestamp=ts,
+                    remember_login=1,
+                    persistence=1,
+                    website_id="Community",
+                    device_details=device_details,
+            additional_field=8
+        )
+
+
+        encoded = base64.b64encode(session.SerializeToString()).decode("utf-8")
+
         r = await self.session.post(
             STEAM_URL.API.IAuthService.BeginAuthSessionViaCredentials,
-            data=data,
+            data={
+                "input_protobuf_encoded": encoded,
+            },
             headers=REFERER_HEADER,
         )
-        return await r.json()
+
+        if r.status == 200 and "application/json" == r.content_type:
+            return await r.json()
+        elif r.content_type == 'application/octet-stream':
+            binary_content = await r.read()
+            response = auth_pb2.CAuthentication_BeginAuthSessionViaCredentials_Response()
+            response.ParseFromString(binary_content)
+            return {"response": {
+                "client_id": response.client_id,
+                "request_id": response.request_id,
+                "steamid": response.steamid
+            }}
+        else:
+            # Read the response (probably an error page in HTML or plaintext)
+            error_text = await r.text()
+                    # Log or print error details for debugging (optional)
+                    # logger.error(f"Unexpected response (status={r.status}, content_type={content_type}): {error_text}")
+
+                    # Raise a descriptive exception (so upstream code can handle it)
+            raise Exception(
+                        f"Steam API Auth failed: status={r.status}, content_type={r.content_type}, "
+                        f"body={error_text}"
+            )
 
     async def _update_auth_session_with_steam_guard_code(self: "SteamCommunityMixin", session_data: dict):
         # Doesn't check allowed confirmations, but it's probably not needed
@@ -220,17 +249,34 @@ class LoginMixin:
             "client_id": session_resp["response"]["client_id"],
             "request_id": session_resp["response"]["request_id"],
         }
+
+        pool_req = auth_pb2.CAuthentication_PollAuthSessionStatus_Request(
+            client_id=session_resp["response"]["client_id"],
+            request_id=session_resp["response"]["request_id"])
+
+        encoded = base64.b64encode(pool_req.SerializeToString()).decode("utf-8")
         r = await self.session.post(
             STEAM_URL.API.IAuthService.PollAuthSessionStatus,
-            data=data,
+            data={
+                "input_protobuf_encoded": encoded,
+            },
             headers=REFERER_HEADER,
         )
-        rj = await r.json()
-        if rj.get("response", {"had_remote_interaction": True})["had_remote_interaction"]:
-            raise ApiError("Error polling auth session status.", rj)
 
-        self._refresh_token = rj["response"]["refresh_token"]
-        self._access_token = rj["response"]["access_token"]
+        if r.status == 200 and "application/json" == r.content_type:
+            rj = await r.json()
+            if rj.get("response", {"had_remote_interaction": True})["had_remote_interaction"]:
+                raise ApiError("Error polling auth session status.", rj)
+
+            self._refresh_token = rj["response"]["refresh_token"]
+            self._access_token = rj["response"]["access_token"]
+        elif r.content_type == 'application/octet-stream':
+            binary_content = await r.read()
+            response = auth_pb2.CAuthentication_PollAuthSessionStatus_Response()
+            response.ParseFromString(binary_content)
+            self._refresh_token = response.refresh_token
+            self._access_token = response.access_token
+
 
     async def _finalize_login(self: "SteamCommunityMixin") -> dict:
         data = {

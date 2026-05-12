@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Literal, TypeAlias
 from datetime import datetime
+from typing import Literal, TypeAlias
 
 from .constants import (
     STEAM_URL,
@@ -95,7 +95,9 @@ class ItemDescription:
         if self.game[0] == 730:
             i_action = next(filter(lambda a: "Inspect" in a.name, self.actions), None)
             if i_action is not None:
-                self.d_id = int(i_action.link.split("%D")[1])
+                parts = i_action.link.split("%D")
+                if len(parts) > 1:
+                    self.d_id = int(parts[1])
 
     @property
     def ident_code(self) -> str:

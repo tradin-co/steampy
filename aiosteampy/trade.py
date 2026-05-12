@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from json import dumps as jdumps
 from typing import TYPE_CHECKING, overload, Literal, Type, TypeAlias, Callable
@@ -17,7 +16,6 @@ from .models import (
 )
 from .typed import TradeOffersSummary
 from .utils import create_ident_code, to_int_boolean, steam_id_to_account_id, account_id_to_steam_id
-from ..steampy.utils import texts_between
 
 if TYPE_CHECKING:
     from .client import SteamCommunityMixin
@@ -278,10 +276,16 @@ class TradeMixin:
 
         return self._create_history_trade_offer(rj["response"]["trades"][0], item_descrs_map)
 
-    async def get_trade_receipt_html(self: "SteamCommunityMixin", trade_id: int):
-        r = await  self.session.get(f'https://steamcommunity.com/trade/{trade_id}/receipt')
-        html = await r.text()
-        items = [json.loads(item) for item in texts_between(html, 'oItem = ', ';\n\toItem.appid')]
+    async def get_trade_receipt_html(self: "SteamCommunityMixin", trade_id: int) -> list[dict]:
+        receipt = await self.get_trade_receipt(trade_id)
+        items = []
+        for item in receipt.assets_received:
+            items.append({
+                'id': str(item.new_asset_id),
+                'market_hash_name': item.market_hash_name,
+                'classid': str(item.class_id),
+                'instanceid': str(item.instance_id),
+            })
         return items
 
     async def get_trade_history(
@@ -357,8 +361,8 @@ class TradeMixin:
             HistoryTradeOfferItem(
                 asset_id=int(a_data["assetid"]),
                 amount=int(a_data["amount"]),
-                new_asset_id=int(a_data["new_assetid"]),
-                new_context_id=int(a_data["new_contextid"]),
+                new_asset_id=int(a_data.get("new_assetid", a_data.get("assetid", 0))),
+                new_context_id=int(a_data.get("new_contextid", a_data.get("contextid", 0))),
                 **item_descrs_map[create_ident_code(a_data["classid"], a_data["appid"])],
             )
             for a_data in items

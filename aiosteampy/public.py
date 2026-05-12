@@ -58,24 +58,33 @@ class SteamPublicMixin:
         """
 
         inv_url = INVENTORY_URL / f"{steam_id}/"
-        params = {"l": self.language, "count": page_size, **kwargs}
+        params = {"l": self.language, "count": page_size,
+                  "raw_asset_properties": 1,
+                  "preserve_bbcode": 1,
+                  **kwargs}
         headers = {"Referer": str(inv_url)}
-        url = inv_url / f"{game[0]}/{game[1]}"
+
+        context_ids = [game[1]]
+        if game[0] == 730:
+            context_ids.append(16)
 
         item_descrs_map = {}
         items = []
-        more_items = True
-        last_assetid = None
-        while more_items:
-            params_pag = {**params, "start_assetid": last_assetid} if last_assetid else params
-            data = await self._fetch_inventory(url, params_pag, headers)
-            if data.get("total_inventory_count",1) == 0:
-                break
-            more_items = data.get("more_items", False)
-            if more_items:
-                last_assetid = data.get("last_assetid")
+        for ctx_id in context_ids:
+            url = inv_url / f"{game[0]}/{ctx_id}"
+            last_assetid = None
+            while True:
+                params_pag = {**params, "start_assetid": last_assetid} if last_assetid else params
+                data = await self._fetch_inventory(url, params_pag, headers)
 
-            items.extend(self._parse_items(data, steam_id, item_descrs_map))
+                if "descriptions" not in data:
+                    break
+
+                items.extend(self._parse_items(data, steam_id, item_descrs_map))
+
+                last_assetid = data.get("last_assetid")
+                if not last_assetid:
+                    break
 
         return [i for i in items if predicate(i)] if predicate else items
 
@@ -113,7 +122,7 @@ class SteamPublicMixin:
         item_descrs_map: dict[str, dict],
     ) -> list[EconItem]:
         for d_data in data.get("descriptions"):
-            key = d_data["classid"]
+            key = create_ident_code(d_data["classid"], d_data["appid"])
             if key not in item_descrs_map:
                 item_descrs_map[key] = cls._create_item_description_kwargs(d_data, data["assets"])
 
@@ -122,7 +131,7 @@ class SteamPublicMixin:
                 asset_id=int(asset_data["assetid"]),
                 owner_id=steam_id,
                 amount=int(asset_data["amount"]),
-                **item_descrs_map[asset_data["classid"]],
+                **item_descrs_map[create_ident_code(asset_data["classid"], asset_data["appid"])],
             )
             for asset_data in data["assets"]
         ]

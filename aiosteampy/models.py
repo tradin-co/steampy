@@ -1,6 +1,10 @@
+import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal, TypeAlias
+
+from dateutil import parser as dateutil_parser
 
 from .constants import (
     STEAM_URL,
@@ -13,7 +17,9 @@ from .constants import (
 )
 from .utils import create_ident_code, account_id_to_steam_id
 
-TRADABLE_AFTER_DATE_FORMAT = "Tradable After %b %d, %Y (%H:%M:%S) %Z"
+logger = logging.getLogger(__name__)
+
+TRADABLE_AFTER_RE = re.compile(r"until\s+(.+?)\s*$")
 
 
 @dataclass(eq=False, slots=True)
@@ -142,6 +148,7 @@ class EconItem(ItemDescription):
         self._set_ident_code()
         self._set_d_id()
         self._set_args_tuple()
+        self._set_tradable_after()
 
     def _set_ident_code(self):
         self.id = create_ident_code(self.asset_id, *self.game)
@@ -150,11 +157,22 @@ class EconItem(ItemDescription):
         self._args_tuple_ = (self.game[0], self.game[1], self.amount, self.asset_id)
 
     def _set_tradable_after(self):
-        if self.market_tradable_restriction:
-            sep = "Tradable After "
-            t_a_descr = next(filter(lambda d: sep in d.value, self.owner_descriptions or ()), None)
-            if t_a_descr is not None:
-                self.tradable_after = datetime.strptime(t_a_descr.value, TRADABLE_AFTER_DATE_FORMAT)
+        if not self.market_tradable_restriction:
+            return
+        for descr in self.owner_descriptions or ():
+            match = TRADABLE_AFTER_RE.search(descr.value)
+            if match is None:
+                continue
+            raw = match.group(1).replace("(", "").replace(")", "")
+            try:
+                self.tradable_after = dateutil_parser.parse(raw)
+            except (ValueError, OverflowError) as exc:
+                logger.warning(
+                    "Failed to parse tradable_after from owner_descriptions value %r: %s",
+                    descr.value,
+                    exc,
+                )
+            return
 
     @property
     def inspect_link(self) -> str | None:
@@ -445,3 +463,7 @@ class HistoryTradeOffer(BaseTradeOffer):
 
     assets_received: list[HistoryTradeOfferItem]
     assets_given: list[HistoryTradeOfferItem]
+
+    # Trade-protection settlement time (Unix seconds). Equals `tradable_after` of received items
+    # while they remain in context 16.
+    time_settlement: int | None = None

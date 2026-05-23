@@ -276,18 +276,6 @@ class TradeMixin:
 
         return self._create_history_trade_offer(rj["response"]["trades"][0], item_descrs_map)
 
-    async def get_trade_receipt_html(self: "SteamCommunityMixin", trade_id: int) -> list[dict]:
-        receipt = await self.get_trade_receipt(trade_id)
-        items = []
-        for item in receipt.assets_received:
-            items.append({
-                'id': str(item.new_asset_id),
-                'market_hash_name': item.market_hash_name,
-                'classid': str(item.class_id),
-                'instanceid': str(item.instance_id),
-            })
-        return items
-
     async def get_trade_history(
             self: "SteamCommunityMixin",
             max_trades=100,
@@ -311,7 +299,7 @@ class TradeMixin:
         """
 
         params = {
-            "key": self._api_key,
+            "access_token": self.get_access_token(STEAM_URL.TRADE),
             "max_trades": max_trades,
             "get_descriptions": 1,
             "include_total": 1,
@@ -341,6 +329,7 @@ class TradeMixin:
             data: dict,
             item_descrs_map: dict[str, dict],
     ) -> HistoryTradeOffer:
+        settlement_raw = data.get("time_settlement") or data.get("time_escrow_end")
         return HistoryTradeOffer(
             id=int(data["tradeid"]),
             owner_id=self.steam_id,
@@ -349,6 +338,7 @@ class TradeMixin:
             status=TradeOfferStatus(data["status"]),
             assets_given=self._parse_items_for_history_trades(data.get("assets_given", ()), item_descrs_map),
             assets_received=self._parse_items_for_history_trades(data.get("assets_received", ()), item_descrs_map),
+            time_settlement=int(settlement_raw) if settlement_raw is not None else None,
         )
 
     @classmethod

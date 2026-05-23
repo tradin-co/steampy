@@ -126,15 +126,20 @@ class SteamPublicMixin:
             if key not in item_descrs_map:
                 item_descrs_map[key] = cls._create_item_description_kwargs(d_data, data["assets"])
 
-        return [
-            EconItem(
-                asset_id=int(asset_data["assetid"]),
-                owner_id=steam_id,
-                amount=int(asset_data["amount"]),
-                **item_descrs_map[create_ident_code(asset_data["classid"], asset_data["appid"])],
+        items: list[EconItem] = []
+        for asset_data in data["assets"]:
+            descr_kwargs = item_descrs_map[create_ident_code(asset_data["classid"], asset_data["appid"])]
+            # Preserve the asset's actual context id (Steam returns 16 for trade-protected CS2 items).
+            asset_kwargs = {**descr_kwargs, "game": (int(asset_data["appid"]), int(asset_data["contextid"]))}
+            items.append(
+                EconItem(
+                    asset_id=int(asset_data["assetid"]),
+                    owner_id=steam_id,
+                    amount=int(asset_data["amount"]),
+                    **asset_kwargs,
+                )
             )
-            for asset_data in data["assets"]
-        ]
+        return items
 
     @classmethod
     def _create_item_actions(cls, actions: list[dict]) -> tuple[ItemAction, ...]:

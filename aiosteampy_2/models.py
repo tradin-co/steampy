@@ -1,7 +1,10 @@
+import logging
+import re
 from dataclasses import dataclass, field
-from typing import NamedTuple
 from datetime import datetime
+from typing import NamedTuple
 
+from dateutil import parser as dateutil_parser
 from yarl import URL
 
 from .constants import (
@@ -16,7 +19,9 @@ from .constants import (
 )
 from .utils import create_ident_code, account_id_to_steam_id
 
-TRADABLE_AFTER_DATE_FORMAT = "Tradable After %b %d, %Y (%H:%M:%S) %Z"
+logger = logging.getLogger(__name__)
+
+TRADABLE_AFTER_RE = re.compile(r"until\s+(.+?)\s*$")
 
 
 class ItemAction(NamedTuple):
@@ -150,11 +155,22 @@ class EconItem:
         self.id = create_ident_code(self.asset_id, self.app_context.context, self.app_context.app.value)
 
     def _set_tradable_after(self):
-        if self.description.market_tradable_restriction:
-            sep = "Tradable After "
-            t_a_descr = next(filter(lambda d: sep in d.value, self.description.owner_descriptions or ()), None)
-            if t_a_descr is not None:
-                self.tradable_after = datetime.strptime(t_a_descr.value, TRADABLE_AFTER_DATE_FORMAT)
+        if not self.description.market_tradable_restriction:
+            return
+        for descr in self.description.owner_descriptions or ():
+            match = TRADABLE_AFTER_RE.search(descr.value)
+            if match is None:
+                continue
+            raw = match.group(1).replace("(", "").replace(")", "")
+            try:
+                self.tradable_after = dateutil_parser.parse(raw)
+            except (ValueError, OverflowError) as exc:
+                logger.warning(
+                    "Failed to parse tradable_after from owner_descriptions value %r: %s",
+                    descr.value,
+                    exc,
+                )
+            return
 
     @property
     def inspect_url(self) -> str | None:
@@ -374,12 +390,23 @@ class BaseTradeOfferItem(EconItem):
     description: ItemDescription | None  # sometimes data has no description, because of course
 
     def _set_tradable_after(self):
-        if self.description is not None and self.description.market_tradable_restriction:
-            # cannot do super()._set_tradable_after() due to super exception
-            sep = "Tradable After "
-            t_a_descr = next(filter(lambda d: sep in d.value, self.description.owner_descriptions or ()), None)
-            if t_a_descr is not None:
-                self.tradable_after = datetime.strptime(t_a_descr.value, TRADABLE_AFTER_DATE_FORMAT)
+        if self.description is None or not self.description.market_tradable_restriction:
+            return
+        # cannot do super()._set_tradable_after() due to super exception
+        for descr in self.description.owner_descriptions or ():
+            match = TRADABLE_AFTER_RE.search(descr.value)
+            if match is None:
+                continue
+            raw = match.group(1).replace("(", "").replace(")", "")
+            try:
+                self.tradable_after = dateutil_parser.parse(raw)
+            except (ValueError, OverflowError) as exc:
+                logger.warning(
+                    "Failed to parse tradable_after from owner_descriptions value %r: %s",
+                    descr.value,
+                    exc,
+                )
+            return
 
     @property
     def inspect_url(self) -> str | None:

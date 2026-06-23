@@ -1,7 +1,7 @@
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import NamedTuple
 
 from dateutil import parser as dateutil_parser
@@ -22,6 +22,9 @@ from .utils import create_ident_code, account_id_to_steam_id
 logger = logging.getLogger(__name__)
 
 TRADABLE_AFTER_RE = re.compile(r"until\s+(.+?)\s*$")
+# Steam may serve the settlement time as a BBCode-wrapped unix timestamp,
+# e.g. "... until [date]1782802800[/date]" instead of a human-readable date.
+TRADABLE_AFTER_BBCODE_RE = re.compile(r"\[date\](\d+)\[/date\]")
 
 
 class ItemAction(NamedTuple):
@@ -161,7 +164,12 @@ class EconItem:
             match = TRADABLE_AFTER_RE.search(descr.value)
             if match is None:
                 continue
-            raw = match.group(1).replace("(", "").replace(")", "")
+            raw = match.group(1)
+            bbcode = TRADABLE_AFTER_BBCODE_RE.search(raw)
+            if bbcode is not None:
+                self.tradable_after = datetime.fromtimestamp(int(bbcode.group(1)), tz=timezone.utc)
+                return
+            raw = raw.replace("(", "").replace(")", "")
             try:
                 self.tradable_after = dateutil_parser.parse(raw)
             except (ValueError, OverflowError) as exc:
@@ -397,7 +405,12 @@ class BaseTradeOfferItem(EconItem):
             match = TRADABLE_AFTER_RE.search(descr.value)
             if match is None:
                 continue
-            raw = match.group(1).replace("(", "").replace(")", "")
+            raw = match.group(1)
+            bbcode = TRADABLE_AFTER_BBCODE_RE.search(raw)
+            if bbcode is not None:
+                self.tradable_after = datetime.fromtimestamp(int(bbcode.group(1)), tz=timezone.utc)
+                return
+            raw = raw.replace("(", "").replace(")", "")
             try:
                 self.tradable_after = dateutil_parser.parse(raw)
             except (ValueError, OverflowError) as exc:
